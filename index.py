@@ -4,7 +4,7 @@ from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
 from dotenv import load_dotenv
-from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
 # Load environment variables
 load_dotenv()
@@ -13,11 +13,23 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(TOKEN)
 
-# Bypass function to resolve the final URL
-def bypass_link(url):
+# Function to bypass a common URL shortener (Example: adf.ly or similar services)
+def bypass_shortened_link(url):
     try:
-        # Make a HEAD request to follow redirects
-        response = requests.head(url, allow_redirects=True)
+        session = requests.Session()
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+
+        # Step 1: Get initial page
+        response = session.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Example for extracting hidden input values or tokens
+        # token = soup.find('input', {'name': 'token'})['value']
+
+        # Simulate the wait time or bypass actions here
+        # e.g., response = session.post('final-step-url', data={'token': token}, headers=headers)
+
+        # Step 2: Follow redirects until final destination
         final_url = response.url
         return final_url
     except Exception as e:
@@ -34,7 +46,7 @@ def process_url(update: Update, context) -> None:
     url = update.message.text
 
     if "http" in url:
-        final_url = bypass_link(url)
+        final_url = bypass_shortened_link(url)
         update.message.reply_text(f'Bypassed link: {final_url}')
     else:
         update.message.reply_text(
