@@ -32,72 +32,70 @@ def save_bypass_patterns(patterns):
 # Load patterns initially
 bypass_patterns = load_bypass_patterns()
 
-# Function to learn the bypass steps from the initial link
-def learn_bypass_steps(url):
-    global bypass_patterns
+# Function to trace steps from the initial link provided by the user
+def trace_and_learn_steps(url):
     try:
         session = requests.Session()
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
 
-        # Get initial page
+        # Step 1: Get initial page
         response = session.get(url, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Save the identified steps/pattern
+        # Example for extracting any needed tokens or hidden inputs
+        # token = soup.find('input', {'name': 'token'})['value']
+
+        # (Optional) Simulate clicking through the bypass process
+        # response = session.post('next-step-url', data={'token': token}, headers=headers)
+
+        # Final URL after bypass
+        final_url = response.url
+
+        # Save the traced steps to the bypass patterns
         bypass_patterns[url] = {
+            'final_url': final_url,
             'headers': headers,
-            'soup': str(soup),  # Storing the initial page structure
-            'final_url': response.url  # Final redirect URL (if any)
+            # Additional data can be saved if needed (e.g., tokens, POST data)
         }
 
         # Save the updated patterns to the file
         save_bypass_patterns(bypass_patterns)
 
-        return "Steps learned successfully!"
+        return final_url  # Return the final URL to the user
     except Exception as e:
-        return f"Error learning the link: {str(e)}"
+        return f"Error tracing the link: {str(e)}"
 
-# Function to bypass a similar link based on learned steps
-def bypass_similar_link(url):
-    global bypass_patterns
+# Function to bypass a link based on learned steps
+def auto_bypass_link(url):
     try:
-        # Check if the pattern already exists
-        if url in bypass_patterns:
-            pattern = bypass_patterns[url]
-
-            session = requests.Session()
-
-            # Apply the learned headers
-            response = session.get(url, headers=pattern['headers'])
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Compare the current soup with the learned soup pattern
-            if str(soup) == pattern['soup']:
-                return pattern['final_url']
-            else:
-                return "Error: The current link does not match the learned pattern."
-        else:
-            return "Error: No learned pattern found for this URL. Please provide the initial link first."
+        for pattern in bypass_patterns:
+            if pattern in url:
+                # Return the saved final URL directly
+                return bypass_patterns[pattern]['final_url']
+        return "No learned pattern found for this URL. Please teach me the initial link first."
     except Exception as e:
         return f"Error bypassing the link: {str(e)}"
 
 # Function to send start message
 def start(update: Update, context) -> None:
     update.message.reply_text(
-        "Hello! Please send the initial link for me to learn the bypass steps."
+        "Hello! Please send me a shortened URL to learn how to bypass it. After learning, I will automatically bypass similar links."
     )
 
-# Function to process URL and learn or bypass based on context
+# Function to process URL
 def process_url(update: Update, context) -> None:
     url = update.message.text
 
     if "http" in url:
-        if url in bypass_patterns:
-            result = bypass_similar_link(url)
-            update.message.reply_text(f'Result: {result}')
+        if any(pattern in url for pattern in bypass_patterns):
+            # Automatically bypass if pattern is learned
+            final_url = auto_bypass_link(url)
         else:
-            result = learn_bypass_steps(url)
-            update.message.reply_text(result)
+            # Learn the steps if pattern is not yet learned
+            final_url = trace_and_learn_steps(url)
+            update.message.reply_text(f'I have learned how to bypass this URL!')
+
+        update.message.reply_text(f'Bypassed link: {final_url}')
     else:
         update.message.reply_text(
             'It seems like the input is not a valid URL. Please send a proper shortened URL.'
