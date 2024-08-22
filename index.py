@@ -13,77 +13,61 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(TOKEN)
 
-# Temporary in-memory storage for bypass patterns
-bypass_patterns = {}
+# In-memory storage for learning steps for different patterns
+step_patterns = {}
 
-# Function to trace steps from the initial link provided by the user
-def trace_and_learn_steps(url):
+# Function to trace and save steps for a given URL
+def trace_and_save_steps(url, user_id):
     try:
         session = requests.Session()
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-
-        # Step 1: Get initial page
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = session.get(url, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Save the URL and its subsequent steps
+        if user_id not in step_patterns:
+            step_patterns[user_id] = []
 
-        # Example for extracting any needed tokens or hidden inputs
-        # token = soup.find('input', {'name': 'token'})['value']
-
-        # Final URL after bypass
-        final_url = response.url
-
-        # Save the traced steps to the bypass patterns in memory
-        bypass_patterns[url] = {
-            'final_url': final_url,
-            'headers': headers,
-            # Additional data can be saved if needed (e.g., tokens, POST data)
-        }
-
-        return final_url  # Return the final URL to the user
+        # Example of saving a step; adjust based on actual shortener steps
+        step_patterns[user_id].append(url)
+        
+        # Further steps can be traced and added here if needed
+        
+        return "Steps saved successfully!"
     except Exception as e:
         return f"Error tracing the link: {str(e)}"
 
-# Function to bypass a link based on learned steps
-def auto_bypass_link(url):
-    try:
-        for pattern in bypass_patterns:
-            if pattern in url:
-                # Return the saved final URL directly
-                return bypass_patterns[pattern]['final_url']
-        return "No learned pattern found for this URL. Please teach me the initial link first."
-    except Exception as e:
-        return f"Error bypassing the link: {str(e)}"
-
-# Function to send start message
-def start(update: Update, context) -> None:
-    update.message.reply_text(
-        "Hello! Send me a shortened URL to learn how to bypass it. After learning, I will automatically bypass similar links."
-    )
-
-# Function to process URL
-def process_url(update: Update, context) -> None:
+# Function to handle initial URL input for learning steps
+def teach_steps(update: Update, context) -> None:
     url = update.message.text
+    user_id = update.message.chat_id
+    result = trace_and_save_steps(url, user_id)
+    update.message.reply_text(result)
 
-    if "http" in url:
-        if any(pattern in url for pattern in bypass_patterns):
-            # Automatically bypass if pattern is learned
-            final_url = auto_bypass_link(url)
-        else:
-            # Learn the steps if pattern is not yet learned
-            final_url = trace_and_learn_steps(url)
-            update.message.reply_text(f'I have learned how to bypass this URL!')
+# Function to automatically bypass using learned steps
+def bypass_learned_steps(update: Update, context) -> None:
+    url = update.message.text
+    user_id = update.message.chat_id
 
-        update.message.reply_text(f'Bypassed link: {final_url}')
+    if user_id in step_patterns and len(step_patterns[user_id]) > 0:
+        session = requests.Session()
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        final_url = url
+
+        # Follow each learned step
+        for step in step_patterns[user_id]:
+            response = session.get(final_url, headers=headers)
+            final_url = response.url
+
+        update.message.reply_text(f'Final bypassed link: {final_url}')
     else:
-        update.message.reply_text(
-            'It seems like the input is not a valid URL. Please send a proper shortened URL.'
-        )
+        update.message.reply_text("Please teach me the steps first using /teach command.")
 
 # Function to set up dispatcher
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, process_url))
+    dispatcher.add_handler(CommandHandler('teach', teach_steps))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, bypass_learned_steps))
     return dispatcher
 
 # Flask app setup
@@ -101,7 +85,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'
+    webhook_url = f'https://yourapp.vercel.app/{TOKEN}'
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
