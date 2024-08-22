@@ -4,6 +4,7 @@ from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Load environment variables
 load_dotenv()
@@ -12,11 +13,20 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(TOKEN)
 
+# Bypass function to resolve the final URL
+def bypass_link(url):
+    try:
+        # Make a HEAD request to follow redirects
+        response = requests.head(url, allow_redirects=True)
+        final_url = response.url
+        return final_url
+    except Exception as e:
+        return f"Error bypassing the link: {str(e)}"
+
 # Function to send start message
 def start(update: Update, context) -> None:
     update.message.reply_text(
-        "Hello! Send me a shortened URL. Open that URL in your browser first, "
-        "then send me the final link you reached."
+        "Hello! Send me a shortened URL, and I will bypass it to give you the final destination link."
     )
 
 # Function to process URL
@@ -24,13 +34,11 @@ def process_url(update: Update, context) -> None:
     url = update.message.text
 
     if "http" in url:
-        # Assuming user sent final URL
-        update.message.reply_text(f'Received final URL: {url}')
+        final_url = bypass_link(url)
+        update.message.reply_text(f'Bypassed link: {final_url}')
     else:
-        # Assuming user needs instructions
         update.message.reply_text(
-            'It seems like you sent an incomplete URL. Please open the shortened link in your browser first, '
-            'and then send me the full URL that appears in your browser’s address bar.'
+            'It seems like the input is not a valid URL. Please send a proper shortened URL.'
         )
 
 # Function to set up dispatcher
