@@ -1,6 +1,5 @@
 import os
 import requests
-import json
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
@@ -14,23 +13,8 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(TOKEN)
 
-# File to save the learned bypass patterns
-PATTERN_FILE = "bypass_patterns.json"
-
-# Function to load the saved patterns from the file
-def load_bypass_patterns():
-    if os.path.exists(PATTERN_FILE):
-        with open(PATTERN_FILE, 'r') as file:
-            return json.load(file)
-    return {}
-
-# Function to save the patterns to the file
-def save_bypass_patterns(patterns):
-    with open(PATTERN_FILE, 'w') as file:
-        json.dump(patterns, file)
-
-# Load patterns initially
-bypass_patterns = load_bypass_patterns()
+# Temporary in-memory storage for bypass patterns
+bypass_patterns = {}
 
 # Function to trace steps from the initial link provided by the user
 def trace_and_learn_steps(url):
@@ -45,21 +29,15 @@ def trace_and_learn_steps(url):
         # Example for extracting any needed tokens or hidden inputs
         # token = soup.find('input', {'name': 'token'})['value']
 
-        # (Optional) Simulate clicking through the bypass process
-        # response = session.post('next-step-url', data={'token': token}, headers=headers)
-
         # Final URL after bypass
         final_url = response.url
 
-        # Save the traced steps to the bypass patterns
+        # Save the traced steps to the bypass patterns in memory
         bypass_patterns[url] = {
             'final_url': final_url,
             'headers': headers,
             # Additional data can be saved if needed (e.g., tokens, POST data)
         }
-
-        # Save the updated patterns to the file
-        save_bypass_patterns(bypass_patterns)
 
         return final_url  # Return the final URL to the user
     except Exception as e:
@@ -79,7 +57,7 @@ def auto_bypass_link(url):
 # Function to send start message
 def start(update: Update, context) -> None:
     update.message.reply_text(
-        "Hello! Please send me a shortened URL to learn how to bypass it. After learning, I will automatically bypass similar links."
+        "Hello! Send me a shortened URL to learn how to bypass it. After learning, I will automatically bypass similar links."
     )
 
 # Function to process URL
