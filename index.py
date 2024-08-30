@@ -1,11 +1,10 @@
 import os
 import requests
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
+from telegram import Bot, Update
+from telegram.ext import CommandHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
-from movies_scraper import search_movies, get_movie  # Ensure movies_scraper.py is included in the deployment package
 
 load_dotenv()
 
@@ -17,19 +16,14 @@ CHANNEL_ID = "-1002170013697"  # Replace with your actual private channel ID
 CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
-# Dummy storage for demonstration (replace with actual persistent storage solution)
-user_membership_status = {}
-
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
     logging.debug(f"User ID: {user_id}")
     if user_in_channel(user_id):
-        user_membership_status[user_id] = True
-        logging.debug(f"User {user_id} joined the channel and is now verified.")
-        start_bot_functions(update, context)
+        logging.debug(f"User {user_id} is verified as a channel member.")
+        update.message.reply_text("You are verified as a channel member.")
     else:
-        user_membership_status[user_id] = False
-        logging.debug(f"User {user_id} did not join the channel.")
+        logging.debug(f"User {user_id} is not a channel member.")
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 def user_in_channel(user_id):
@@ -49,70 +43,9 @@ def user_in_channel(user_id):
         logging.error(f"Exception while checking user channel status: {e}")
         return False
 
-def start_bot_functions(update: Update, context) -> None:
-    update.message.reply_text(f"Hello {update.message.from_user.first_name}, Welcome to Movie dekhee.\n"
-                              f"🔥 Download Your Favourite Movies For 💯 Free And 🍿 Enjoy it.")
-    update.message.reply_text("👇 Enter Movie Name 👇 and link ko Chrome me hi open kare wrna Download link nhi milenga okay ")
-
-def find_movie(update: Update, context) -> None:
-    search_results = update.message.reply_text("Processing...")
-    query = update.message.text
-    movies_list = search_movies(query)
-    logging.debug(f"Movies List: {movies_list}")
-    
-    if movies_list:
-        for movie in movies_list:
-            title = movie.get("title", "No Title")
-            image_url = movie.get("image", "")
-
-            print(f"[DEBUG] Movie Title: {title}")
-            print(f"[DEBUG] Image URL: {image_url}")
-
-            keyboard = [
-                [InlineKeyboardButton("Get Links", callback_data=movie["id"])]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            # Check if the image URL is valid
-            if is_valid_image_url(image_url):
-                update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
-            else:
-                update.message.reply_text(title, reply_markup=reply_markup)
-
-        search_results.delete()  # Remove the initial "Processing..." message
-    else:
-        search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
-        
-def movie_result(update: Update, context) -> None:
-    query = update.callback_query
-    movie_data = get_movie(query.data)
-    
-    # Prepare the movie title, poster image, and download links
-    title = f"🎥 {movie_data['title']}"
-    img_url = movie_data.get('image', '')
-    link = ""
-    links = movie_data.get("links", {})
-    for i in links:
-        link += f"🎬 {i}\n{links[i]}\n\n"
-    
-    # Prepare the caption with links
-    caption = f"⚡ Fast Download Links :-\n\n{link}"
-    
-    # Send the movie title, poster image, and download links
-    if len(caption) > 4095:
-        for x in range(0, len(caption), 4095):
-            context.bot.send_message(chat_id=query.message.chat_id, text=caption[x:x+4095], parse_mode='HTML')
-    else:
-        context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode='HTML')
-
-    if img_url:
-        context.bot.send_photo(chat_id=query.message.chat_id, photo=img_url, caption=title)
-
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(movie_result))  # Handler for movie details
     return dispatcher
 
 app = Flask(__name__)
@@ -129,7 +62,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    s = bot.setWebhook(f'https://movies4u-bot.vercel.app/{TOKEN}')
+    s = bot.setWebhook(f'https://your-app-url/{TOKEN}')
     return "Webhook setup ok" if s else "Webhook setup failed"
 
 if __name__ == '__main__':
