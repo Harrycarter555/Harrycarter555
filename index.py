@@ -1,76 +1,101 @@
 import os
 import requests
-from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher
-from dotenv import load_dotenv
 from bs4 import BeautifulSoup
+from flask import Flask, request
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
+from dotenv import load_dotenv
+import logging
+from movies_scraper import search_movies, get_movie  # Ensure movies_scraper.py is included in the deployment package
 
-# Load environment variables
 load_dotenv()
 
-# Telegram bot token
+# Setup logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHANNEL_ID = "-1002170013697"  # Replace with your actual private channel ID
+CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
-# In-memory storage for user patterns
-user_patterns = {}
+# Dummy storage for demonstration (replace with actual persistent storage solution)
+user_membership_status = {}
 
-# Function to guide the user
-def start(update: Update, context) -> None:
-    update.message.reply_text(
-        "Hello! To help me bypass shortened URLs, follow these steps:\n\n"
-        "1. Open the shortened URL in your browser.\n"
-        "2. Trace the steps or actions needed to reach the final destination.\n"
-        "3. Send me the URL along with a brief description of the steps or actions you took.\n\n"
-        "Example:\n"
-        "1. Open URL: http://short.url\n"
-        "2. Click 'Continue' button if required.\n"
-        "3. Send me the final URL.\n\n"
-        "After you provide the steps, I will be able to handle similar URLs in the future."
-    )
-
-# Function to save bypass steps
-def save_bypass_steps(update: Update, context) -> None:
-    url = update.message.text
-    user_id = update.message.chat_id
-    
-    if user_id not in user_patterns:
-        user_patterns[user_id] = {}
-
-    # Save URL and corresponding bypass steps (You need to adjust this based on actual steps)
-    user_patterns[user_id][url] = "manual steps provided by the user"
-
-    update.message.reply_text(
-        "Thanks! I have noted down the steps for the URL. You can now provide me with similar shortened URLs, "
-        "and I will automatically bypass them for you."
-    )
-
-# Function to automatically bypass learned steps
-def bypass_learned_steps(update: Update, context) -> None:
-    url = update.message.text
-    user_id = update.message.chat_id
-
-    if user_id in user_patterns:
-        # Simulate bypass based on saved steps (You need to implement actual logic based on saved steps)
-        # Example: Here we just provide the original URL
-        final_url = url
-
-        update.message.reply_text(f'Final bypassed link: {final_url}')
+def welcome(update: Update, context) -> None:
+    user_id = update.message.from_user.id
+    logging.debug(f"User ID: {user_id}")
+    if user_in_channel(user_id):
+        user_membership_status[user_id] = True
+        logging.debug(f"User {user_id} joined the channel and is now verified.")
+        start_bot_functions(update, context)
     else:
-        update.message.reply_text(
-            "I don't have any bypass steps saved for you. Please use the /start command to teach me how to bypass URLs."
-        )
+        user_membership_status[user_id] = False
+        logging.debug(f"User {user_id} did not join the channel.")
+        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-# Function to set up dispatcher
+def user_in_channel(user_id):
+    url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
+    logging.debug(f"Checking membership status for user {user_id} with URL: {url}")
+    try:
+        response = requests.get(url).json()
+        logging.debug(f"Response from Telegram API: {response}")
+        if response.get('ok') and 'result' in response:
+            status = response['result']['status']
+            logging.debug(f"User {user_id} status in channel: {status}")
+            return status in ['member', 'administrator', 'creator']
+        else:
+            logging.error("Invalid response structure or 'ok' field is False.")
+            return False
+    except Exception as e:
+        logging.error(f"Exception while checking user channel status: {e}")
+        return False
+
+def start_bot_functions(update: Update, context) -> None:
+    update.message.reply_text(f"Hello {update.message.from_user.first_name}, Welcome to Movie dekhee.\n"
+                              f"🔥 Download Your Favourite Movies For 💯 Free And 🍿 Enjoy it.")
+    update.message.reply_text("👇 Enter Movie Name 👇 and link ko Chrome me hi open kare wrna Download link nhi milenga okay ")
+
+def find_movie(update: Update, context) -> None:
+    search_results = update.message.reply_text("Processing...")
+    query = update.message.text
+    movies_list = search_movies(query)
+    logging.debug(f"Movies List: {movies_list}")
+    if movies_list:
+        keyboards = [[InlineKeyboardButton(movie["title"], callback_data=movie["id"])] for movie in movies_list]
+        reply_markup = InlineKeyboardMarkup(keyboards)
+        search_results.edit_text('Search Results...', reply_markup=reply_markup)
+    else:
+        search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
+
+def movie_result(update: Update, context) -> None:
+    query = update.callback_query
+    movie_data = get_movie(query.data)
+    
+    # Prepare the movie title and download links
+    title = f"🎥 {movie_data['title']}"
+    link = ""
+    links = movie_data.get("links", {})
+    for i in links:
+        if i.lower() != "trailer":  # Skip "Trailer" if it exists
+            link += f"🎬 {i}\n{links[i]}\n\n"
+    
+    # Prepare the caption with links
+    caption = f"⚡ Fast Download Links :-\n\n{link}"
+    
+    # Send the movie title and download links
+    if len(caption) > 4095:
+        for x in range(0, len(caption), 4095):
+            context.bot.send_message(chat_id=query.message.chat_id, text=caption[x:x+4095], parse_mode='HTML')
+    else:
+        context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode='HTML')
+
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, save_bypass_steps))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, bypass_learned_steps))
+    dispatcher.add_handler(CommandHandler('start', welcome))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    dispatcher.add_handler(CallbackQueryHandler(movie_result))  # Handler for movie details
     return dispatcher
 
-# Flask app setup
 app = Flask(__name__)
 
 @app.route('/')
@@ -85,12 +110,8 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://yourapp.vercel.app/{TOKEN}'
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
-        return "Webhook setup failed"
+    s = bot.setWebhook(f'https://movies4u-bot.vercel.app/{TOKEN}')
+    return "Webhook setup ok" if s else "Webhook setup failed"
 
 if __name__ == '__main__':
     app.run(debug=True)
