@@ -59,16 +59,22 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text
     movies_list = search_movies(query)
     logging.debug(f"Movies List: {movies_list}")
+    
     if movies_list:
         for movie in movies_list:
             title = movie.get("title", "No Title")
             image_url = movie.get("image", "")
+
+            print(f"[DEBUG] Movie Title: {title}")
+            print(f"[DEBUG] Image URL: {image_url}")
+
             keyboard = [
                 [InlineKeyboardButton("Get Links", callback_data=movie["id"])]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            if image_url:
+            # Check if the image URL is valid
+            if is_valid_image_url(image_url):
                 update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
             else:
                 update.message.reply_text(title, reply_markup=reply_markup)
@@ -76,6 +82,7 @@ def find_movie(update: Update, context) -> None:
         search_results.delete()  # Remove the initial "Processing..." message
     else:
         search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
+        
 def movie_result(update: Update, context) -> None:
     query = update.callback_query
     movie_data = get_movie(query.data)
