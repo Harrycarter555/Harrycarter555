@@ -19,7 +19,7 @@ def search_movies(query):
         print(f"[DEBUG] Response Status Code: {response.status_code}")
         print(f"[DEBUG] Response Text: {response.text[:1000]}")  # Print first 1000 characters for inspection
         
-        # Update the class name according to the actual structure
+        # Find all movie anchor tags
         movies = website.find_all("a", {'class': 'film-poster-ahref flw-item-tip'})
         print(f"[DEBUG] Found Movies: {len(movies)}")
         
@@ -27,14 +27,19 @@ def search_movies(query):
             movie_details = {}
             title = movie.get('title')
             href = movie.get('href')
+            img_tag = movie.find("img")  # Assuming image is in <img> tag inside <a>
+            img_url = img_tag['src'] if img_tag and 'src' in img_tag.attrs else None
+            
             if title and href:
                 movie_details["id"] = f"link{index}"
                 movie_details["title"] = title
                 full_url = f"https://1flix.to{href}" if href.startswith('/') else href
+                movie_details["url"] = full_url
+                movie_details["image"] = img_url
                 url_list[movie_details["id"]] = full_url
                 movies_list.append(movie_details)
             else:
-                print(f"[DEBUG] No valid title or href found for movie {index}")
+                print(f"[DEBUG] No valid title, href, or image found for movie {index}")
     except Exception as e:
         print(f"[ERROR] Exception in search_movies: {e}")
     return movies_list
