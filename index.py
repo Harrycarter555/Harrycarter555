@@ -61,7 +61,9 @@ def find_movie(update: Update, context) -> None:
     movies_list = search_movies(query)
     logging.debug(f"Movies List: {movies_list}")
     if movies_list:
-        keyboards = [[InlineKeyboardButton(movie["title"], callback_data=movie["id"])] for movie in movies_list]
+        keyboards = [
+            [InlineKeyboardButton(movie["title"], callback_data=movie["id"])] for movie in movies_list
+        ]
         reply_markup = InlineKeyboardMarkup(keyboards)
         search_results.edit_text('Search Results...', reply_markup=reply_markup)
     else:
@@ -71,8 +73,9 @@ def movie_result(update: Update, context) -> None:
     query = update.callback_query
     movie_data = get_movie(query.data)
     
-    # Prepare the movie title and download links
+    # Prepare the movie title, poster image, and download links
     title = f"🎥 {movie_data['title']}"
+    img_url = movie_data.get('image', '')
     link = ""
     links = movie_data.get("links", {})
     for i in links:
@@ -82,12 +85,15 @@ def movie_result(update: Update, context) -> None:
     # Prepare the caption with links
     caption = f"⚡ Fast Download Links :-\n\n{link}"
     
-    # Send the movie title and download links
+    # Send the movie title, poster image, and download links
     if len(caption) > 4095:
         for x in range(0, len(caption), 4095):
             context.bot.send_message(chat_id=query.message.chat_id, text=caption[x:x+4095], parse_mode='HTML')
     else:
         context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode='HTML')
+
+    if img_url:
+        context.bot.send_photo(chat_id=query.message.chat_id, photo=img_url, caption=title)
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
