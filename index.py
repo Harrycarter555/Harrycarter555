@@ -1,6 +1,5 @@
 import os
 import requests
-from bs4 import BeautifulSoup
 from flask import Flask, request
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
@@ -79,8 +78,7 @@ def movie_result(update: Update, context) -> None:
     link = ""
     links = movie_data.get("links", {})
     for i in links:
-        if i.lower() != "trailer":  # Skip "Trailer" if it exists
-            link += f"🎬 {i}\n{links[i]}\n\n"
+        link += f"🎬 {i}\n{links[i]}\n\n"
     
     # Prepare the caption with links
     caption = f"⚡ Fast Download Links :-\n\n{link}"
