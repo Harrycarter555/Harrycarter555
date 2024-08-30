@@ -144,8 +144,12 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    s = bot.setWebhook(f'https://harrycarter555.vercel.app/{TOKEN}')
-    return "Webhook setup ok" if s else "Webhook setup failed"
+    webhook_url = f'https://your-app-url/{TOKEN}'  # Update with your deployment URL
+    s = bot.setWebhook(webhook_url)
+    if s:
+        return "Webhook setup ok"
+    else:
+        return "Webhook setup failed"
 
 if __name__ == '__main__':
     app.run(debug=True)
