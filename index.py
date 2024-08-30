@@ -1,8 +1,9 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import CommandHandler, Dispatcher
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
 
@@ -16,14 +17,19 @@ CHANNEL_ID = "-1002170013697"  # Replace with your actual private channel ID
 CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
+# Dummy storage for demonstration (replace with actual persistent storage solution)
+user_membership_status = {}
+
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
     logging.debug(f"User ID: {user_id}")
     if user_in_channel(user_id):
-        logging.debug(f"User {user_id} is verified as a channel member.")
+        user_membership_status[user_id] = True
+        logging.debug(f"User {user_id} joined the channel and is now verified.")
         update.message.reply_text("You are verified as a channel member.")
     else:
-        logging.debug(f"User {user_id} is not a channel member.")
+        user_membership_status[user_id] = False
+        logging.debug(f"User {user_id} did not join the channel.")
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 def user_in_channel(user_id):
@@ -43,9 +49,59 @@ def user_in_channel(user_id):
         logging.error(f"Exception while checking user channel status: {e}")
         return False
 
+def search_movies(query):
+    search_url = f"https://1flix.to/search/{query}"
+    logging.debug(f"Searching for movies with URL: {search_url}")
+    try:
+        response = requests.get(search_url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        movies = []
+
+        for link in soup.find_all('a', class_='film-poster-ahref flw-item-tip'):
+            title = link.get('title')
+            href = link.get('href')
+            full_url = f"https://1flix.to{href}"
+            image_tag = link.find('img')
+            image_url = image_tag.get('src') if image_tag else None
+            movies.append({'title': title, 'url': full_url, 'image': image_url})
+
+        logging.debug(f"Movies found: {movies}")
+        return movies
+    except Exception as e:
+        logging.error(f"Error during movie search: {e}")
+        return []
+
+def find_movie(update: Update, context) -> None:
+    query = update.message.text.strip()
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
+    movies_list = search_movies(query)
+    logging.debug(f"Movies List: {movies_list}")
+    
+    if movies_list:
+        for movie in movies_list:
+            title = movie.get("title", "No Title")
+            movie_url = movie.get("url", "#")
+            image_url = movie.get("image", "")
+
+            keyboard = [
+                [InlineKeyboardButton("Watch Now", url=movie_url)]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            # Send movie information
+            if image_url:
+                update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
+            else:
+                update.message.reply_text(title, reply_markup=reply_markup)
+
+        search_results.delete()  # Remove the initial "Searching..." message
+    else:
+        search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
+
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
     return dispatcher
 
 app = Flask(__name__)
