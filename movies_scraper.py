@@ -19,23 +19,22 @@ def search_movies(query):
         print(f"[DEBUG] Response Status Code: {response.status_code}")
         print(f"[DEBUG] Response Text: {response.text[:1000]}")  # Print first 1000 characters for inspection
         
-        # Assuming that the structure of 1flix.to is similar to mkvcinemas.cat,
-        # you may need to adjust these lines to reflect the actual HTML structure.
-        # Here, I'll make a general guess, but you'll need to inspect the HTML to confirm.
-        
-        movies = website.find_all("a", {'class': 'some-movie-class'})  # Adjust class name accordingly
+        # Update the class name according to the actual structure
+        movies = website.find_all("a", {'class': 'film-poster-ahref flw-item-tip'})
         print(f"[DEBUG] Found Movies: {len(movies)}")
         
         for index, movie in enumerate(movies):
             movie_details = {}
-            title_span = movie.find("span", {'class': 'some-title-class'})  # Adjust class name accordingly
-            if title_span:
+            title = movie.get('title')
+            href = movie.get('href')
+            if title and href:
                 movie_details["id"] = f"link{index}"
-                movie_details["title"] = title_span.text
-                url_list[movie_details["id"]] = movie['href']
+                movie_details["title"] = title
+                full_url = f"https://1flix.to{href}" if href.startswith('/') else href
+                url_list[movie_details["id"]] = full_url
                 movies_list.append(movie_details)
             else:
-                print(f"[DEBUG] No title span found for movie {index}")
+                print(f"[DEBUG] No valid title or href found for movie {index}")
     except Exception as e:
         print(f"[ERROR] Exception in search_movies: {e}")
     return movies_list
@@ -43,38 +42,43 @@ def search_movies(query):
 def get_movie(movie_id):
     movie_details = {}
     try:
-        movie_url = url_list[movie_id]
-        movie_page_link = BeautifulSoup(requests.get(movie_url, headers=headers).text, "html.parser")
+        movie_url = url_list.get(movie_id)
+        if not movie_url:
+            print(f"[ERROR] No URL found for movie ID: {movie_id}")
+            return movie_details
+        
+        response = requests.get(movie_url, headers=headers)
+        movie_page_link = BeautifulSoup(response.text, "html.parser")
         
         print(f"[DEBUG] Fetching Movie Page URL: {movie_url}")
-        print(f"[DEBUG] Response Text: {requests.get(movie_url, headers=headers).text[:1000]}")  # Print first 1000 characters for inspection
+        print(f"[DEBUG] Response Text: {response.text[:1000]}")  # Print first 1000 characters for inspection
         
         if movie_page_link:
-            title_div = movie_page_link.find("div", {'class': 'mvic-desc'})  # Adjust based on actual HTML
-            if title_div:
-                title = title_div.h3.text
-                movie_details["title"] = title
+            # Adjust based on actual HTML structure for the movie title
+            title_div = movie_page_link.find("div", {'class': 'mvic-desc'})
+            if title_div and title_div.h3:
+                movie_details["title"] = title_div.h3.text
             
             final_links = {}
             
-            # Adjust the parsing for links accordingly.
-            links = movie_page_link.find_all("a", {'class': 'some-link-class'})  # Adjust based on actual HTML
+            # Adjust the class to match the links section
+            links = movie_page_link.find_all("a", {'class': 'some-link-class'})  # Replace with actual class name
             print(f"[DEBUG] Found gdlink Links: {len(links)}")
             for i in links:
                 final_links[f"{i.text}"] = i['href']
             
-            # Adjust additional link parsing based on actual HTML structure.
-            button_links = movie_page_link.find_all("a", {'class': 'button'})  # Example
+            # Adjust for other link/button sections
+            button_links = movie_page_link.find_all("a", {'class': 'button'})  # Example, replace with actual class
             print(f"[DEBUG] Found button Links: {len(button_links)}")
             for i in button_links:
                 if "href" in i.attrs and "title" in i.attrs:
                     final_links[f"{i.text} [{i['title']}]"] = i['href']
             
-            # Adjust for "Stream Online" section if it exists.
-            stream_section = movie_page_link.find(text="Stream Online Links:")  # Example
+            # Stream online section (adjust as needed)
+            stream_section = movie_page_link.find(text="Stream Online Links:")  # Replace if different
             if stream_section:
                 stream_links = stream_section.find_next("a")
-                if stream_links:
+                if stream_links and stream_links.has_attr('href'):
                     final_links["🔴 Stream Online"] = stream_links['href']
             
             movie_details["links"] = final_links
@@ -83,3 +87,13 @@ def get_movie(movie_id):
     except Exception as e:
         print(f"[ERROR] Exception in get_movie: {e}")
     return movie_details
+
+# Example usage
+search_results = search_movies("hello")
+print(f"Search Results: {search_results}")
+
+# To get more details of a specific movie from the search results
+if search_results:
+    movie_id = search_results[0]['id']
+    movie_info = get_movie(movie_id)
+    print(f"Movie Info: {movie_info}")
