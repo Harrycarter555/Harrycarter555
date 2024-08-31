@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
@@ -72,24 +72,12 @@ def search_movies(query):
                 movie_url_tag = item.find('a', href=True)
                 movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
 
-                # Extracting the image URL
-                image_tag = item.find('img')
-                image_url = image_tag['src'] if image_tag else ""
-
-                # Extracting all download links
-                download_links = []
-                for dll_div in item.find_all('div', class_='dll'):
-                    link = dll_div.find('a', href=True)
-                    if link:
-                        download_links.append({
-                            'text': dll_div.get_text(strip=True),
-                            'url': link['href']
-                        })
+                # Fetching download links from the movie page
+                download_links = get_download_links(movie_url)
 
                 movies.append({
                     'title': title,
                     'url': movie_url,
-                    'image': image_url,
                     'download_links': download_links
                 })
             logging.debug(f"Movies found: {movies}")
@@ -99,6 +87,27 @@ def search_movies(query):
             return []
     except Exception as e:
         logging.error(f"Error during movie search: {e}")
+        return []
+
+def get_download_links(movie_url):
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
+        response = requests.get(movie_url, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            download_links = []
+            for link in soup.find_all('a', class_='dl', href=True):
+                link_url = link['href']
+                download_links.append(link_url)
+            logging.debug(f"Download links found: {download_links}")
+            return download_links
+        else:
+            logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
+            return []
+    except Exception as e:
+        logging.error(f"Error while fetching download links: {e}")
         return []
 
 def find_movie(update: Update, context) -> None:
@@ -120,43 +129,18 @@ def find_movie(update: Update, context) -> None:
 
 def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
-    image_url = movie.get("image", "")
     download_links = movie.get("download_links", [])
 
-    keyboard = [
-        [InlineKeyboardButton(link['text'], url=link['url'])] for link in download_links
-    ]
-    keyboard.append([InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    if image_url:
-        update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
+    if download_links:
+        download_links_text = "\n".join([f"Download Link: {link}" for link in download_links])
+        update.message.reply_text(f"{title}\n\n{download_links_text}")
     else:
-        update.message.reply_text(title, reply_markup=reply_markup)
-
-def button(update: Update, context) -> None:
-    query = update.callback_query
-    query.answer()
-
-    user_id = query.from_user.id
-    callback_data = query.data
-
-    if callback_data.startswith("next_"):
-        index = int(callback_data.split("_")[1])
-        movies_list = search_results_cache.get(user_id, [])
-
-        if index < len(movies_list):
-            movie = movies_list[index]
-            query.message.delete()  # Delete the previous message
-            show_movie_result(query, movie, index)
-        else:
-            query.message.reply_text("No more results.")
+        update.message.reply_text(f"{title}\n\nNo download links available.")
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(button))
     return dispatcher
 
 app = Flask(__name__)
