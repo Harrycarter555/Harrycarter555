@@ -63,19 +63,42 @@ def search_movies(query):
             href = link.get('href')
             full_url = f"https://1flix.to{href}"
             image_tag = link.find('img')
-            image_url = image_tag.get('data-src') if image_tag else None
+            image_url = image_tag.get('data-src') if image_tag and image_tag.has_attr('data-src') else image_tag.get('src')
 
-            # Check if there is a trailer available
-            trailer_button = link.find('button', class_='btn-trailer')
-            trailer_available = trailer_button is not None
+            # Fetch the movie details page to find trailer and watch now URLs
+            trailer_url, watch_now_url = get_movie_buttons(full_url)
 
-            movies.append({'title': title, 'url': full_url, 'image': image_url, 'trailer_available': trailer_available})
+            movies.append({
+                'title': title, 
+                'url': watch_now_url, 
+                'image': image_url, 
+                'trailer_url': trailer_url
+            })
 
         logging.debug(f"Movies found: {movies}")
         return movies
     except Exception as e:
         logging.error(f"Error during movie search: {e}")
         return []
+
+def get_movie_buttons(movie_url):
+    """ Fetches the 'Watch Now' and 'Watch Trailer' URLs from the movie details page. """
+    try:
+        response = requests.get(movie_url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Extract 'Watch Now' URL
+        watch_now_button = soup.find('a', class_='btn btn-watch btn-action')
+        watch_now_url = watch_now_button.get('href') if watch_now_button else movie_url
+
+        # Extract 'Watch Trailer' URL if available
+        trailer_button = soup.find('a', class_='btn btn-trailer')
+        trailer_url = trailer_button.get('href') if trailer_button else None
+
+        return trailer_url, watch_now_url
+    except Exception as e:
+        logging.error(f"Error fetching movie buttons: {e}")
+        return None, movie_url
 
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
@@ -98,12 +121,12 @@ def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
     movie_url = movie.get("url", "#")
     image_url = movie.get("image", "")
-    trailer_available = movie.get("trailer_available", False)
+    trailer_url = movie.get("trailer_url")
 
     keyboard = [[InlineKeyboardButton("Watch Now", url=movie_url)]]
 
-    if trailer_available:
-        keyboard.append([InlineKeyboardButton("Watch Trailer", callback_data=f"trailer_{index}")])
+    if trailer_url:
+        keyboard.append([InlineKeyboardButton("Watch Trailer", url=trailer_url)])
 
     keyboard.append([InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")])
     
@@ -131,15 +154,6 @@ def button(update: Update, context) -> None:
             show_movie_result(query, movie, index)
         else:
             query.message.reply_text("No more results.")
-    elif callback_data.startswith("trailer_"):
-        index = int(callback_data.split("_")[1])
-        movies_list = search_results_cache.get(user_id, [])
-
-        if index < len(movies_list):
-            movie = movies_list[index]
-            # Here, you would need to implement the logic to fetch and show the trailer URL.
-            # For now, we will just send a placeholder message.
-            query.message.reply_text(f"Trailer for {movie['title']} is not yet implemented.")
             
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
