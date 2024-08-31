@@ -61,22 +61,26 @@ def search_movies(query):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         response = requests.get(search_url, headers=headers)
-        soup = BeautifulSoup(response.content, 'html.parser')
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        movies = []
-        for item in soup.find_all('a', href=True):
-            href = item['href']
-            if "www.filmyzilla.com.ps" in href:
-                parsed_url = urlparse(href)
-                actual_url = parse_qs(parsed_url.query).get('q', [href])[0]  # Extracting the actual URL
-                title = item.get_text()
-                movies.append({
-                    'title': title,
-                    'url': actual_url,
-                    'image': None  # Update with logic to extract images if needed
-                })
-        logging.debug(f"Movies found: {movies}")
-        return movies
+            movies = []
+            for item in soup.find_all('a', href=True):
+                href = item['href']
+                if "www.filmyzilla.com.ps" in href:
+                    parsed_url = urlparse(href)
+                    actual_url = parse_qs(parsed_url.query).get('q', [href])[0]  # Extracting the actual URL
+                    title = item.get_text()
+                    movies.append({
+                        'title': title,
+                        'url': actual_url,
+                        'image': None  # Update with logic to extract images if needed
+                    })
+            logging.debug(f"Movies found: {movies}")
+            return movies
+        else:
+            logging.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
+            return []
     except Exception as e:
         logging.error(f"Error during movie search: {e}")
         return []
