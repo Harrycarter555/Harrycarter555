@@ -6,7 +6,6 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
-from urllib.parse import urlparse, parse_qs, quote
 
 load_dotenv()
 
@@ -52,8 +51,7 @@ def user_in_channel(user_id):
         return False
 
 def search_movies(query):
-    encoded_query = quote(query)
-    search_url = f"https://www.google.com/search?q={encoded_query}&as_sitesearch=www.filmyzilla.com.ps#ip=1"
+    search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     logging.debug(f"Searching for movies with URL: {search_url}")
 
     try:
@@ -65,17 +63,24 @@ def search_movies(query):
             soup = BeautifulSoup(response.content, 'html.parser')
 
             movies = []
-            for item in soup.find_all('a', href=True):
-                href = item['href']
-                if "www.filmyzilla.com.ps" in href:
-                    parsed_url = urlparse(href)
-                    actual_url = parse_qs(parsed_url.query).get('q', [href])[0]  # Extracting the actual URL
-                    title = item.get_text()
-                    movies.append({
-                        'title': title,
-                        'url': actual_url,
-                        'image': None  # Update with logic to extract images if needed
-                    })
+            for item in soup.find_all('div', class_='A2'):
+                # Extracting the title
+                title_tag = item.find('a', href=True).find_next('b').find('span')
+                title = title_tag.get_text(strip=True) if title_tag else "No Title"
+                
+                # Extracting the movie URL
+                movie_url_tag = item.find('a', href=True)
+                movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+
+                # Extracting the image URL
+                image_tag = item.find('img')
+                image_url = image_tag['src'] if image_tag else ""
+
+                movies.append({
+                    'title': title,
+                    'url': movie_url,
+                    'image': image_url
+                })
             logging.debug(f"Movies found: {movies}")
             return movies
         else:
