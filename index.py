@@ -98,9 +98,9 @@ def get_download_links(movie_url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
-            for link in soup.find_all('a', class_='dl', href=True):
-                link_url = link['href']
-                download_links.append(link_url)
+            for div in soup.find_all('div', class_='dll'):
+                text = div.get_text(strip=True)
+                download_links.append(text)
             logging.debug(f"Download links found: {download_links}")
             return download_links
         else:
@@ -121,21 +121,24 @@ def find_movie(update: Update, context) -> None:
         # Save search results in cache
         search_results_cache[user_id] = movies_list
 
-        # Show the first result
-        show_movie_result(update, movies_list[0], 0)
+        # Show all results
+        for movie in movies_list:
+            show_movie_result(update, movie)
         search_results.delete()  # Remove the initial "Searching..." message
     else:
         search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
 
-def show_movie_result(update: Update, movie, index):
+def show_movie_result(update: Update, movie):
     title = movie.get("title", "No Title")
+    movie_url = movie.get("url", "#")
     download_links = movie.get("download_links", [])
 
     if download_links:
-        download_links_text = "\n".join([f"Download Link: {link}" for link in download_links])
-        update.message.reply_text(f"{title}\n\n{download_links_text}")
+        download_links_text = "\n".join([f"{link}" for link in download_links])
+        message = f"{title}\n\nDownload Links:\n{download_links_text}\n\nMovie URL: {movie_url}"
+        update.message.reply_text(message)
     else:
-        update.message.reply_text(f"{title}\n\nNo download links available.")
+        update.message.reply_text(f"{title}\n\nNo download links available.\n\nMovie URL: {movie_url}")
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
