@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
@@ -63,8 +63,13 @@ def search_movies(query):
             href = link.get('href')
             full_url = f"https://1flix.to{href}"
             image_tag = link.find('img')
-            image_url = image_tag.get('src') if image_tag else None
-            movies.append({'title': title, 'url': full_url, 'image': image_url})
+            image_url = image_tag.get('data-src') if image_tag else None
+
+            # Check if there is a trailer available
+            trailer_button = link.find('button', class_='btn-trailer')
+            trailer_available = trailer_button is not None
+
+            movies.append({'title': title, 'url': full_url, 'image': image_url, 'trailer_available': trailer_available})
 
         logging.debug(f"Movies found: {movies}")
         return movies
@@ -93,11 +98,15 @@ def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
     movie_url = movie.get("url", "#")
     image_url = movie.get("image", "")
+    trailer_available = movie.get("trailer_available", False)
 
-    keyboard = [
-        [InlineKeyboardButton("Watch Now", url=movie_url)],
-        [InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")]
-    ]
+    keyboard = [[InlineKeyboardButton("Watch Now", url=movie_url)]]
+
+    if trailer_available:
+        keyboard.append([InlineKeyboardButton("Watch Trailer", callback_data=f"trailer_{index}")])
+
+    keyboard.append([InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if image_url:
@@ -122,7 +131,16 @@ def button(update: Update, context) -> None:
             show_movie_result(query, movie, index)
         else:
             query.message.reply_text("No more results.")
+    elif callback_data.startswith("trailer_"):
+        index = int(callback_data.split("_")[1])
+        movies_list = search_results_cache.get(user_id, [])
 
+        if index < len(movies_list):
+            movie = movies_list[index]
+            # Here, you would need to implement the logic to fetch and show the trailer URL.
+            # For now, we will just send a placeholder message.
+            query.message.reply_text(f"Trailer for {movie['title']} is not yet implemented.")
+            
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
