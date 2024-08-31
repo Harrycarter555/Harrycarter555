@@ -6,6 +6,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
+from urllib.parse import urlparse, parse_qs, quote
 
 load_dotenv()
 
@@ -51,26 +52,29 @@ def user_in_channel(user_id):
         return False
 
 def search_movies(query):
-    # Use the Google custom search URL for Filmyzilla
-    search_url = f"https://www.google.com/m/search?q={query}&as_sitesearch=www.filmyzilla.com.ps#ip=1"
+    encoded_query = quote(query)
+    search_url = f"https://www.google.com/search?q={encoded_query}&as_sitesearch=www.filmyzilla.com.ps#ip=1"
     logging.debug(f"Searching for movies with URL: {search_url}")
-    try:
-        response = requests.get(search_url)
-        soup = BeautifulSoup(response.content, 'html.parser')
-        movies = []
 
-        # Parsing the Google search result page for Filmyzilla links
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
+        response = requests.get(search_url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        movies = []
         for item in soup.find_all('a', href=True):
             href = item['href']
             if "www.filmyzilla.com.ps" in href:
+                parsed_url = urlparse(href)
+                actual_url = parse_qs(parsed_url.query).get('q', [href])[0]  # Extracting the actual URL
                 title = item.get_text()
-                full_url = href if href.startswith('http') else f"https://www.google.com{href}"
                 movies.append({
                     'title': title,
-                    'url': full_url,
-                    'image': None  # Image extraction might not be straightforward in this setup
+                    'url': actual_url,
+                    'image': None  # Update with logic to extract images if needed
                 })
-
         logging.debug(f"Movies found: {movies}")
         return movies
     except Exception as e:
@@ -97,16 +101,17 @@ def find_movie(update: Update, context) -> None:
 def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
     movie_url = movie.get("url", "#")
+    image_url = movie.get("image", "")
 
-    keyboard = [[InlineKeyboardButton("Watch Now", url=movie_url)]]
-
-    # For simplicity, adding only the Watch Now button here
-    keyboard.append([InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")])
-    
+    keyboard = [
+        [InlineKeyboardButton("Watch Now", url=movie_url)],
+        [InlineKeyboardButton("Trailer", url=movie_url + "/#modaltrailer")],
+        [InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if movie.get("image"):
-        update.message.reply_photo(photo=movie["image"], caption=title, reply_markup=reply_markup)
+    if image_url:
+        update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
     else:
         update.message.reply_text(title, reply_markup=reply_markup)
 
@@ -127,7 +132,7 @@ def button(update: Update, context) -> None:
             show_movie_result(query, movie, index)
         else:
             query.message.reply_text("No more results.")
-            
+
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
