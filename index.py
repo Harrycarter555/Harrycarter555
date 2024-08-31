@@ -76,10 +76,15 @@ def search_movies(query):
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else ""
 
+                # Extracting the download link
+                download_link_tag = item.find('a', class_='dl')
+                download_link = download_link_tag['href'] if download_link_tag else "#"
+
                 movies.append({
                     'title': title,
                     'url': movie_url,
-                    'image': image_url
+                    'image': image_url,
+                    'download_link': download_link
                 })
             logging.debug(f"Movies found: {movies}")
             return movies
@@ -109,12 +114,11 @@ def find_movie(update: Update, context) -> None:
 
 def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
-    movie_url = movie.get("url", "#")
+    download_link = movie.get("download_link", "#")
     image_url = movie.get("image", "")
 
     keyboard = [
-        [InlineKeyboardButton("Watch Now", url=movie_url)],
-        [InlineKeyboardButton("Trailer", url=movie_url + "/#modaltrailer")],
+        [InlineKeyboardButton("Download 480p 720p 1080p 2160p (4k - FHD) [HD]", url=download_link)],
         [InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
