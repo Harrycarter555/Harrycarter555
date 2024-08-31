@@ -51,54 +51,31 @@ def user_in_channel(user_id):
         return False
 
 def search_movies(query):
-    search_url = f"https://1flix.to/search/{query}"
+    # Use the Google custom search URL for Filmyzilla
+    search_url = f"https://www.google.com/m/search?q={query}&as_sitesearch=www.filmyzilla.com.ps#ip=1"
     logging.debug(f"Searching for movies with URL: {search_url}")
     try:
         response = requests.get(search_url)
         soup = BeautifulSoup(response.content, 'html.parser')
         movies = []
 
-        for link in soup.find_all('a', class_='film-poster-ahref flw-item-tip'):
-            title = link.get('title')
-            href = link.get('href')
-            full_url = f"https://1flix.to{href}"
-            image_tag = link.find('img')
-            image_url = image_tag.get('data-src') if image_tag and image_tag.has_attr('data-src') else image_tag.get('src')
-
-            # Fetch the movie details page to find trailer and watch now URLs
-            trailer_url, watch_now_url = get_movie_buttons(full_url)
-
-            movies.append({
-                'title': title, 
-                'url': watch_now_url, 
-                'image': image_url, 
-                'trailer_url': trailer_url
-            })
+        # Parsing the Google search result page for Filmyzilla links
+        for item in soup.find_all('a', href=True):
+            href = item['href']
+            if "www.filmyzilla.com.ps" in href:
+                title = item.get_text()
+                full_url = href if href.startswith('http') else f"https://www.google.com{href}"
+                movies.append({
+                    'title': title,
+                    'url': full_url,
+                    'image': None  # Image extraction might not be straightforward in this setup
+                })
 
         logging.debug(f"Movies found: {movies}")
         return movies
     except Exception as e:
         logging.error(f"Error during movie search: {e}")
         return []
-
-def get_movie_buttons(movie_url):
-    """ Fetches the 'Watch Now' and 'Watch Trailer' URLs from the movie details page. """
-    try:
-        response = requests.get(movie_url)
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Extract 'Watch Now' URL
-        watch_now_button = soup.find('a', class_='btn btn-watch btn-action')
-        watch_now_url = watch_now_button.get('href') if watch_now_button else movie_url
-
-        # Extract 'Watch Trailer' URL if available
-        trailer_button = soup.find('a', class_='btn btn-trailer')
-        trailer_url = trailer_button.get('href') if trailer_button else None
-
-        return trailer_url, watch_now_url
-    except Exception as e:
-        logging.error(f"Error fetching movie buttons: {e}")
-        return None, movie_url
 
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
@@ -120,20 +97,16 @@ def find_movie(update: Update, context) -> None:
 def show_movie_result(update: Update, movie, index):
     title = movie.get("title", "No Title")
     movie_url = movie.get("url", "#")
-    image_url = movie.get("image", "")
-    trailer_url = movie.get("trailer_url")
 
     keyboard = [[InlineKeyboardButton("Watch Now", url=movie_url)]]
 
-    if trailer_url:
-        keyboard.append([InlineKeyboardButton("Watch Trailer", url=trailer_url)])
-
+    # For simplicity, adding only the Watch Now button here
     keyboard.append([InlineKeyboardButton("Next", callback_data=f"next_{index + 1}")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if image_url:
-        update.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
+    if movie.get("image"):
+        update.message.reply_photo(photo=movie["image"], caption=title, reply_markup=reply_markup)
     else:
         update.message.reply_text(title, reply_markup=reply_markup)
 
