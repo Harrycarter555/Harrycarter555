@@ -104,8 +104,10 @@ def get_download_links(movie_url):
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
             for div in soup.find_all('div', class_='dll'):
-                text = div.get_text(strip=True)
-                download_links.append(text)
+                link_tag = div.find('a', href=True)
+                link_text = link_tag.get_text(strip=True)
+                href = link_tag['href']
+                download_links.append(f'<a href="{href}" class="dl">{link_text}</a>')
             logging.debug(f"Download links found: {download_links}")
             return download_links
         else:
@@ -126,24 +128,40 @@ def find_movie(update: Update, context) -> None:
         # Save search results in cache
         search_results_cache[user_id] = movies_list
 
-        # Show all results with images, titles, and download links
-        for movie in movies_list:
-            title = movie.get("title", "No Title")
-            image_url = movie.get("image", None)
-            download_links = movie.get("download_links", [])
-            movie_url = movie.get("url", "#")
+        # Create Inline Keyboard with movie titles
+        keyboard = []
+        for idx, movie in enumerate(movies_list):
+            keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
 
-            if image_url:
-                update.message.reply_photo(photo=image_url, caption=f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
-            else:
-                update.message.reply_text(f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
         search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
+
+def button_click(update: Update, context) -> None:
+    query = update.callback_query
+    query.answer()
+    
+    user_id = query.from_user.id
+    selected_movie_idx = int(query.data)
+    selected_movie = search_results_cache[user_id][selected_movie_idx]
+
+    # Send the selected movie details (image, title, download links)
+    title = selected_movie['title']
+    image_url = selected_movie.get('image', None)
+    download_links = selected_movie.get('download_links', [])
+    movie_url = selected_movie.get('url', "#")
+
+    if image_url:
+        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+    else:
+        query.message.reply_text(f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    dispatcher.add_handler(CallbackQueryHandler(button_click))
     return dispatcher
 
 app = Flask(__name__)
