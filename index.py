@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
@@ -72,12 +72,17 @@ def search_movies(query):
                 movie_url_tag = item.find('a', href=True)
                 movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
 
+                # Extracting the image URL
+                image_tag = item.find('img')
+                image_url = image_tag['src'] if image_tag else None
+
                 # Fetching download links from the movie page
                 download_links = get_download_links(movie_url)
 
                 movies.append({
                     'title': title,
                     'url': movie_url,
+                    'image': image_url,
                     'download_links': download_links
                 })
             logging.debug(f"Movies found: {movies}")
@@ -121,41 +126,24 @@ def find_movie(update: Update, context) -> None:
         # Save search results in cache
         search_results_cache[user_id] = movies_list
 
-        # Show all results with inline buttons
-        buttons = []
-        for idx, movie in enumerate(movies_list):
-            buttons.append([InlineKeyboardButton(text=movie['title'], callback_data=f"movie_{idx}")])
+        # Show all results with images, titles, and download links
+        for movie in movies_list:
+            title = movie.get("title", "No Title")
+            image_url = movie.get("image", None)
+            download_links = movie.get("download_links", [])
+            movie_url = movie.get("url", "#")
 
-        reply_markup = InlineKeyboardMarkup(buttons)
-        search_results.edit_text("Select a movie:", reply_markup=reply_markup)
+            if image_url:
+                update.message.reply_photo(photo=image_url, caption=f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+            else:
+                update.message.reply_text(f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
     else:
         search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
-
-def show_movie_details(update: Update, context) -> None:
-    query = update.callback_query
-    user_id = query.from_user.id
-    movie_index = int(query.data.split('_')[1])
-    
-    if user_id in search_results_cache:
-        movie = search_results_cache[user_id][movie_index]
-        title = movie.get("title", "No Title")
-        movie_url = movie.get("url", "#")
-        download_links = movie.get("download_links", [])
-
-        if download_links:
-            download_links_text = "\n".join([f"{link}" for link in download_links])
-            message = f"{title}\n\nDownload Links:\n{download_links_text}\n\nMovie URL: {movie_url}"
-            query.message.reply_text(message)
-        else:
-            query.message.reply_text(f"{title}\n\nNo download links available.\n\nMovie URL: {movie_url}")
-    
-    query.answer()  # Acknowledge the callback query
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(show_movie_details))  # Add handler for callback queries
     return dispatcher
 
 app = Flask(__name__)
