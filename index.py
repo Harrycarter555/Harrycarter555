@@ -107,7 +107,10 @@ def get_download_links(movie_url):
                 link_tag = div.find('a', href=True)
                 link_text = link_tag.get_text(strip=True)
                 href = link_tag['href']
-                download_links.append(f'<a href="{href}" class="dl">{link_text}</a>')
+                download_links.append({
+                    'text': link_text,
+                    'url': href
+                })
             logging.debug(f"Download links found: {download_links}")
             return download_links
         else:
@@ -146,16 +149,23 @@ def button_click(update: Update, context) -> None:
     selected_movie_idx = int(query.data)
     selected_movie = search_results_cache[user_id][selected_movie_idx]
 
-    # Send the selected movie details (image, title, download links)
+    # Send the selected movie details (image, title, and download links as inline buttons)
     title = selected_movie['title']
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
-    movie_url = selected_movie.get('url', "#")
 
+    # Create InlineKeyboard with download links
+    keyboard = []
+    for link in download_links:
+        keyboard.append([InlineKeyboardButton(link['text'], url=link['url'])])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Send image and title with inline buttons for download links
     if image_url:
-        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_photo(photo=image_url, caption=f"{title}", reply_markup=reply_markup)
     else:
-        query.message.reply_text(f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_text(f"{title}", reply_markup=reply_markup)
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
