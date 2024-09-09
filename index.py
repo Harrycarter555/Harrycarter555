@@ -185,7 +185,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://<your-deployed-server-url>/{TOKEN}'  # Update with your actual URL
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your actual URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
