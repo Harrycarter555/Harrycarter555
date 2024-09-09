@@ -32,28 +32,40 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-# Ab `MessageHandler` sirf normal text messages ko handle karega jo movie search se related hain
+from telegram.ext import Filters
+
 def find_movie(update: Update, context) -> None:
     if update.message.text.startswith("/start"):
-        # Do not process `/start` here, it will be handled by the `welcome` function
+        # Agar kisi tarike se yeh function `/start` ko handle kar raha hai to ye bypass ho
         return
     
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    if user_id not in search_results_cache:
-        search_results = update.message.reply_text("Searching for movies... Please wait.")
-        movies_list = search_movies(query)
-        search_results_cache[user_id] = movies_list
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
+    movies_list = search_movies(query)
 
-        if movies_list:
-            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-        else:
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+    if movies_list:
+        search_results_cache[user_id] = movies_list
+        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        update.message.reply_text("A search is already in progress. Please wait for results.")
+        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+
+def setup_dispatcher():
+    dispatcher = Dispatcher(bot, None, use_context=True)
+    
+    # /start command handler
+    dispatcher.add_handler(CommandHandler('start', welcome))
+    
+    # Sirf normal text ke liye handler, jo `/start` ko ignore karega
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    
+    # Callback button handler
+    dispatcher.add_handler(CallbackQueryHandler(button_click))
+    
+    return dispatcher
 
 # Setup dispatcher to handle /start and other messages separately
 def setup_dispatcher():
