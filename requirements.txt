@@ -1,7 +1,6 @@
-Flask==2.0.2
-python-telegram-bot==13.7
-requests==2.26.0
-beautifulsoup4==4.10.0
-Werkzeug==2.0.2
+Flask==2.3.2
+python-telegram-bot==20.0a5
+beautifulsoup4==4.12.2
+requests==2.31.0
 aiohttp==3.8.4
-python-dotenv==0.19.1
+python-dotenv==1.0.0
