@@ -6,6 +6,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
+import time
 
 # Load environment variables
 load_dotenv()
@@ -24,7 +25,6 @@ user_membership_status = {}
 search_results_cache = {}
 
 def welcome(update: Update, context) -> None:
-    """Send welcome message and check if the user is in the channel."""
     user_id = update.message.from_user.id
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
@@ -34,41 +34,56 @@ def welcome(update: Update, context) -> None:
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 def find_movie(update: Update, context) -> None:
-    """Handle movie search and provide options."""
+    """Handle movie search requests from users."""
+    # Ignore if the message is a command
+    if update.message.text.startswith('/'):
+        return
+
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    if user_membership_status.get(user_id, False):
-        search_results = update.message.reply_text("Searching for movies... Please wait.")
-        movies_list = search_movies(query)
-
-        if movies_list:
-            search_results_cache[user_id] = movies_list
-            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-        else:
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-    else:
+    # Check if user is in the channel
+    if not user_in_channel(user_id):
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
+        return
+
+    # Send initial searching message
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
+    
+    # Simulate a delay to show that the bot is processing
+    time.sleep(2)  # Adjust delay as needed
+
+    # Perform the search
+    movies_list = search_movies(query)
+
+    if movies_list:
+        search_results_cache[user_id] = movies_list
+        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+    else:
+        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+
+def setup_dispatcher():
+    dispatcher = Dispatcher(bot, None, use_context=True)
+    dispatcher.add_handler(CommandHandler('start', welcome))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    dispatcher.add_handler(CallbackQueryHandler(button_click))
+    return dispatcher
 
 def user_in_channel(user_id) -> bool:
-    """Check if a user is in the Telegram channel."""
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
         response = requests.get(url).json()
         if response.get('ok') and 'result' in response:
             status = response['result']['status']
             return status in ['member', 'administrator', 'creator']
-        else:
-            logger.error(f"Error in API response: {response}")
-            return False
+        return False
     except Exception as e:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
 def search_movies(query: str):
-    """Scrape movie data from the site."""
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
@@ -94,7 +109,6 @@ def search_movies(query: str):
         return []
 
 def get_download_links(movie_url: str):
-    """Scrape download links from the movie page."""
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
         response = requests.get(movie_url, headers=headers)
@@ -120,7 +134,6 @@ def get_download_links(movie_url: str):
         return []
 
 def button_click(update: Update, context) -> None:
-    """Handle button clicks from the user."""
     query = update.callback_query
     query.answer()
     user_id = query.from_user.id
@@ -136,15 +149,6 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
-def setup_dispatcher():
-    """Set up the Telegram dispatcher."""
-    dispatcher = Dispatcher(bot, None, use_context=True)
-    dispatcher.add_handler(CommandHandler('start', welcome))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(button_click))
-    return dispatcher
-
-# Flask app to serve Telegram webhook
 app = Flask(__name__)
 
 @app.route('/')
@@ -153,14 +157,12 @@ def index():
 
 @app.route(f'/{TOKEN}', methods=['POST'])
 def respond():
-    """Process updates from Telegram."""
     update = Update.de_json(request.get_json(force=True), bot)
     setup_dispatcher().process_update(update)
     return 'ok'
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    """Set up the webhook."""
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
