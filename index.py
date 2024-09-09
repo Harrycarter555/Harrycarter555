@@ -29,7 +29,9 @@ def user_in_channel(user_id) -> bool:
         response = requests.get(url).json()
         if response.get('ok') and 'result' in response:
             status = response['result']['status']
+            logger.info(f"User {user_id} status in channel: {status}")
             return status in ['member', 'administrator', 'creator']
+        logger.warning(f"Unexpected response format: {response}")
         return False
     except Exception as e:
         logger.error(f"Exception while checking user channel status: {e}")
@@ -38,6 +40,7 @@ def user_in_channel(user_id) -> bool:
 # Welcome handler function
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
+    logger.info(f"Welcome message for user {user_id}")
     if user_in_channel(user_id):
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
     else:
@@ -51,7 +54,7 @@ def search_movies(query: str):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(search_url, headers=headers)  # Set a timeout of 10 seconds for search results
+        response = requests.get(search_url, headers=headers)  # Removed timeout
         if response.status_code == 200:
             logger.info("Successfully retrieved search results")
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -70,6 +73,7 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
+            logger.info(f"Found {len(movies)} movies")
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
@@ -84,8 +88,9 @@ def get_download_links(movie_url: str):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(movie_url, headers=headers)  # No timeout for download links
+        response = requests.get(movie_url, headers=headers)  # Removed timeout
         if response.status_code == 200:
+            logger.info(f"Successfully retrieved download links for {movie_url}")
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()
 
@@ -109,6 +114,7 @@ def get_download_links(movie_url: str):
                 for url, text in download_links
                 if url.startswith('http') and 'cank.xyz' not in url
             ]
+            logger.info(f"Found {len(filtered_links)} download links")
             return filtered_links
         else:
             logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
@@ -172,6 +178,7 @@ def respond():
     try:
         update = Update.de_json(request.get_json(force=True), bot)
         setup_dispatcher().process_update(update)
+        logger.info("Update processed successfully")
         return 'ok', 200
     except Exception as e:
         logger.error(f"Error processing update: {e}")
@@ -180,10 +187,16 @@ def respond():
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Ensure this URL is correct
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
+    try:
+        s = bot.setWebhook(webhook_url)
+        if s:
+            logger.info("Webhook setup successfully")
+            return "Webhook setup ok"
+        else:
+            logger.error("Webhook setup failed")
+            return "Webhook setup failed"
+    except Exception as e:
+        logger.error(f"Error setting up webhook: {e}")
         return "Webhook setup failed"
 
 if __name__ == '__main__':
