@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, Update
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
@@ -42,14 +42,6 @@ def user_in_channel(user_id):
         logging.error(f"Exception while checking user channel status: {e}")
         return False
 
-# Function to extract download URL and text from the <a> tag with class 'dl'
-def extract_download_url(item):
-    download_tag = item.find('a', class_='dl')
-    download_link = download_tag['href'] if download_tag else None
-    download_text = download_tag.get_text(strip=True) if download_tag else "Download"
-    return download_link, download_text
-
-# Function to search for movies on the external website
 def search_movies(query):
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
@@ -62,16 +54,18 @@ def search_movies(query):
 
             movies = []
             for item in soup.find_all('div', class_='A2'):
-                # Extract the title
+                # Extracting the title
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 
-                # Extract the image URL
+                # Extracting the image URL
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
 
-                # Extract the download link using extract_download_url
-                download_link, download_text = extract_download_url(item)
+                # Extracting download link from the search page itself (beside the image)
+                download_tag = item.find('a', class_='dl')
+                download_link = download_tag['href'] if download_tag else None
+                download_text = download_tag.get_text(strip=True) if download_tag else "Download"
 
                 movies.append({
                     'title': title,
@@ -86,7 +80,6 @@ def search_movies(query):
         logging.error(f"Error during movie search: {e}")
         return []
 
-# Function to handle movie search results
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
@@ -107,7 +100,6 @@ def find_movie(update: Update, context) -> None:
     else:
         search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
 
-# Callback handler for button click events
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
@@ -121,25 +113,21 @@ def button_click(update: Update, context) -> None:
     if user_id in search_results_cache:
         selected_movie = search_results_cache[user_id][selected_movie_idx]
 
-        # Send the selected movie details (image, title, and download link as inline button)
+        # Send the selected movie details (image, title, and download link as plain text)
         title = selected_movie['title']
         image_url = selected_movie.get('image', None)
         download_link = selected_movie.get('download_link', "#")
-        download_text = selected_movie.get('download_text', "Download")
+        
+        # Send the details as plain text
+        message_text = f"{title}\n\nDownload Link: {download_link}"
 
-        # Create InlineKeyboard with the download link
-        keyboard = [[InlineKeyboardButton(download_text, url=download_link)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Send image and title with inline button for the download link
         if image_url:
-            query.message.reply_photo(photo=image_url, caption=f"{title}", reply_markup=reply_markup)
+            query.message.reply_photo(photo=image_url, caption=message_text)
         else:
-            query.message.reply_text(f"{title}", reply_markup=reply_markup)
+            query.message.reply_text(message_text)
     else:
         query.message.reply_text("No data found. Please search again.")
 
-# Setup dispatcher for handling Telegram commands and messages
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
@@ -147,7 +135,6 @@ def setup_dispatcher():
     dispatcher.add_handler(CallbackQueryHandler(button_click))
     return dispatcher
 
-# Flask app for webhook setup
 app = Flask(__name__)
 
 @app.route('/')
