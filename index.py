@@ -51,7 +51,7 @@ def find_movie(update: Update, context) -> None:
     search_results = update.message.reply_text("Searching for movies... Please wait.")
     
     # Simulate a delay to show that the bot is processing
-    time.sleep(2)  # Adjust delay as needed
+    time.sleep(5)  # Adjust delay as needed
 
     # Perform the search
     movies_list = search_movies(query)
