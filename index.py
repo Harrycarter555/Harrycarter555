@@ -90,8 +90,11 @@ def get_download_links(movie_url):
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
                     if link:
+                        url = link['href']
+                        if not url.startswith(('http:', 'https:')):
+                            url = 'https:' + url
                         download_links.append({
-                            'url': link['href'],
+                            'url': url,
                             'text': div.get_text(strip=True)
                         })
                     else:
@@ -104,15 +107,21 @@ def get_download_links(movie_url):
             for a_tag in soup.find_all('a', href=True):
                 div_tag = a_tag.find('div')
                 if div_tag and div_tag.has_attr('class'):
+                    url = a_tag['href']
+                    if not url.startswith(('http:', 'https:')):
+                        url = 'https:' + url
                     download_links.append({
-                        'url': a_tag['href'],
+                        'url': url,
                         'text': div_tag.get_text(strip=True)
                     })
                 
                 # Handle cases with ▼ and center alignments
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
+                    url = a_tag['href']
+                    if not url.startswith(('http:', 'https:')):
+                        url = 'https:' + url
                     download_links.append({
-                        'url': a_tag['href'],
+                        'url': url,
                         'text': a_tag.get_text(strip=True)
                     })
 
@@ -184,7 +193,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://yourdomain.com/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
