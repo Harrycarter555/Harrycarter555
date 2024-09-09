@@ -1,6 +1,7 @@
 import os
+import requests
 from flask import Flask, request
-from telegram import Bot, Update
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 from dotenv import load_dotenv
 import logging
