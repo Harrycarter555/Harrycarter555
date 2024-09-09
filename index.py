@@ -83,49 +83,34 @@ def get_download_links(movie_url):
         response = requests.get(movie_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            download_links = []
+            download_links = set()  # Use a set to avoid duplicates
 
             # Handle <a> tags with classes 'dl', 'dll', 'dlll'
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
                     if link:
-                        url = link['href']
-                        if not url.startswith(('http:', 'https:')):
-                            url = 'https:' + url
-                        download_links.append({
-                            'url': url,
-                            'text': div.get_text(strip=True)
-                        })
+                        download_links.add((link['href'], div.get_text(strip=True)))
                     else:
-                        download_links.append({
-                            'url': '#',  # Placeholder URL for <div> without an <a> tag
-                            'text': div.get_text(strip=True)
-                        })
+                        download_links.add(('#', div.get_text(strip=True)))
 
             # Handle <a> tags with the download button format
             for a_tag in soup.find_all('a', href=True):
                 div_tag = a_tag.find('div')
                 if div_tag and div_tag.has_attr('class'):
-                    url = a_tag['href']
-                    if not url.startswith(('http:', 'https:')):
-                        url = 'https:' + url
-                    download_links.append({
-                        'url': url,
-                        'text': div_tag.get_text(strip=True)
-                    })
+                    download_links.add((a_tag['href'], div_tag.get_text(strip=True)))
                 
                 # Handle cases with ▼ and center alignments
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
-                    url = a_tag['href']
-                    if not url.startswith(('http:', 'https:')):
-                        url = 'https:' + url
-                    download_links.append({
-                        'url': url,
-                        'text': a_tag.get_text(strip=True)
-                    })
+                    download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
-            return download_links
+            # Filter out invalid URLs (e.g., URLs without host, specific invalid URLs)
+            filtered_links = [
+                {'url': url, 'text': text}
+                for url, text in download_links
+                if url.startswith('http') and 'cank.xyz' not in url  # Exclude specific invalid URLs
+            ]
+            return filtered_links
         else:
             logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
             return []
