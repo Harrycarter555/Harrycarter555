@@ -20,16 +20,13 @@ CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actu
 bot = Bot(TOKEN)
 
 # Dummy storage for demonstration (replace with actual persistent storage solution)
-user_membership_status = {}
 search_results_cache = {}
 
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
     if user_in_channel(user_id):
-        user_membership_status[user_id] = True
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
     else:
-        user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 def user_in_channel(user_id) -> bool:
@@ -117,19 +114,22 @@ def get_download_links(movie_url: str):
         return []
 
 def find_movie(update: Update, context) -> None:
-    query = update.message.text.strip()
     user_id = update.message.from_user.id
-    logger.info(f"User {user_id} searched for: {query}")
-    search_results = update.message.reply_text("Searching for movies... Please wait.")
-    movies_list = search_movies(query)
-    
-    if movies_list:
-        search_results_cache[user_id] = movies_list
-        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+    if user_in_channel(user_id):
+        query = update.message.text.strip()
+        logger.info(f"User {user_id} searched for: {query}")
+        search_results = update.message.reply_text("Searching for movies... Please wait.")
+        movies_list = search_movies(query)
+        
+        if movies_list:
+            search_results_cache[user_id] = movies_list
+            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        else:
+            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
     else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
