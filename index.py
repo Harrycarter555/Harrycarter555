@@ -17,6 +17,25 @@ CHANNEL_ID = "-1002170013697"
 CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"
 bot = Bot(TOKEN)
 
+import os
+import requests
+from bs4 import BeautifulSoup
+from flask import Flask, request
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
+from dotenv import load_dotenv
+import logging
+
+load_dotenv()
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHANNEL_ID = "-1002170013697"
+CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"
+bot = Bot(TOKEN)
+
 user_membership_status = {}
 search_results_cache = {}
 
@@ -80,65 +99,49 @@ def search_movies(query):
         logging.error(f"Error during movie search: {e}")
         return []
 
-def split_message(message, max_length=4096):
-    """Split a message into chunks of up to `max_length` characters."""
-    return [message[i:i+max_length] for i in range(0, len(message), max_length)]
-
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
-    search_results_message = update.message.reply_text("Searching for movies... Please wait.")
-    
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
     movies_list = search_movies(query)
     
     if movies_list:
         # Save search results in cache
         search_results_cache[user_id] = movies_list
 
-        # Create response message with the list of movies and download links
-        message = "Select a movie:\n\n"
+        # Create Inline Keyboard with movie titles
+        keyboard = []
         for idx, movie in enumerate(movies_list):
-            message += f"{idx+1}. {movie['title']}\n"
-            message += f"Download link: {movie['download_link']}\n\n"
+            keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
 
-        # Split message if it's too long
-        message_chunks = split_message(message)
-        
-        # Edit the search results message
-        search_results_message.edit_text(message_chunks[0])
-        
-        # Send the remaining chunks as separate messages
-        for chunk in message_chunks[1:]:
-            update.message.reply_text(chunk)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        search_results_message.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
+        search_results.edit_text('Sorry 🙏, No Result Found!\nCheck If You Have Misspelled The Movie Name.')
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
-
+    
     user_id = query.from_user.id
     selected_movie_idx = int(query.data)
-    
-    # Logging for debugging
-    logging.info(f"Selected movie index: {selected_movie_idx}")
-    
-    if user_id in search_results_cache:
-        selected_movie = search_results_cache[user_id][selected_movie_idx]
+    selected_movie = search_results_cache[user_id][selected_movie_idx]
 
-        # Send the selected movie details (image, title, and download link)
-        title = selected_movie['title']
-        image_url = selected_movie.get('image', None)
-        download_link = selected_movie.get('download_link', "#")
-        download_text = selected_movie.get('download_text', "Download")
+    # Send the selected movie details (image, title, and download link as inline button)
+    title = selected_movie['title']
+    image_url = selected_movie.get('image', None)
+    download_link = selected_movie.get('download_link', "#")
+    download_text = selected_movie.get('download_text', "Download")
 
-        # Create message with the download link
-        if image_url:
-            query.message.reply_photo(photo=image_url, caption=f"{title}\nDownload link: {download_link}")
-        else:
-            query.message.reply_text(f"{title}\nDownload link: {download_link}")
+    # Create InlineKeyboard with the download link
+    keyboard = [[InlineKeyboardButton(download_text, url=download_link)]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Send image and title with inline button for the download link
+    if image_url:
+        query.message.reply_photo(photo=image_url, caption=f"{title}", reply_markup=reply_markup)
     else:
-        query.message.reply_text("No data found. Please search again.")
+        query.message.reply_text(f"{title}", reply_markup=reply_markup)
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
