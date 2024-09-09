@@ -84,8 +84,17 @@ def get_download_links(movie_url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
+            
+            # Handle <a> tags with class 'dl'
             for a in soup.find_all('a', class_='dl', href=True):
                 download_links.append(a['href'])
+            
+            # Handle <div> tags with class 'dl'
+            for div in soup.find_all('div', class_='dl'):
+                link = div.find('a', href=True)
+                if link:
+                    download_links.append(link['href'])
+            
             return download_links
         else:
             logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
@@ -154,7 +163,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://yourdomain.com/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
