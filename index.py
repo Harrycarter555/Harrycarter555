@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
@@ -150,12 +150,19 @@ def button_click(update: Update, context) -> None:
     title = selected_movie['title']
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
-    movie_url = selected_movie.get('url', "#")
+
+    # Format download links
+    formatted_links = '\n'.join(download_links)
 
     if image_url:
-        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_photo(
+            photo=image_url,
+            caption=f"{title}\n\nDownload Links:\n{formatted_links}"
+        )
     else:
-        query.message.reply_text(f"{title}\n\nMovie URL: {movie_url}\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_text(
+            f"{title}\n\nDownload Links:\n{formatted_links}"
+        )
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
