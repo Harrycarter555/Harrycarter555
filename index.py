@@ -85,18 +85,10 @@ def get_download_links(movie_url):
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
 
-            # Handle <a> tags with class 'dl'
-            for a in soup.find_all('a', class_='dl', href=True):
-                download_links.append({
-                    'url': a['href'],
-                    'text': a.get_text(strip=True)
-                })
-
-            # Handle <div> tags with classes 'dl', 'dll', 'dlll'
+            # Handle <a> tags with classes 'dl', 'dll', 'dlll'
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
-                    # Extract text and URL
-                    link = div.find('a', href=True)
+                    link = div.find_previous('a', href=True)
                     if link:
                         download_links.append({
                             'url': link['href'],
@@ -107,6 +99,22 @@ def get_download_links(movie_url):
                             'url': '#',  # Placeholder URL for <div> without an <a> tag
                             'text': div.get_text(strip=True)
                         })
+
+            # Handle <a> tags with the download button format
+            for a_tag in soup.find_all('a', href=True):
+                div_tag = a_tag.find('div')
+                if div_tag and div_tag.has_attr('class'):
+                    download_links.append({
+                        'url': a_tag['href'],
+                        'text': div_tag.get_text(strip=True)
+                    })
+                
+                # Handle cases with ▼ and center alignments
+                if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
+                    download_links.append({
+                        'url': a_tag['href'],
+                        'text': a_tag.get_text(strip=True)
+                    })
 
             return download_links
         else:
@@ -176,7 +184,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://yourdomain.com/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
