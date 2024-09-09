@@ -27,11 +27,48 @@ def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
-        update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
+        update.message.reply_text("Welcome! You are verified as a channel member. Send a movie name to search for it.")
     else:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
+# Ab `MessageHandler` sirf normal text messages ko handle karega jo movie search se related hain
+def find_movie(update: Update, context) -> None:
+    if update.message.text.startswith("/start"):
+        # Do not process `/start` here, it will be handled by the `welcome` function
+        return
+    
+    query = update.message.text.strip()
+    user_id = update.message.from_user.id
+
+    if user_id not in search_results_cache:
+        search_results = update.message.reply_text("Searching for movies... Please wait.")
+        movies_list = search_movies(query)
+        search_results_cache[user_id] = movies_list
+
+        if movies_list:
+            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        else:
+            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+    else:
+        update.message.reply_text("A search is already in progress. Please wait for results.")
+
+# Setup dispatcher to handle /start and other messages separately
+def setup_dispatcher():
+    dispatcher = Dispatcher(bot, None, use_context=True)
+    
+    # /start command handler
+    dispatcher.add_handler(CommandHandler('start', welcome))
+    
+    # Movie search handler
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    
+    # Inline button callback handler
+    dispatcher.add_handler(CallbackQueryHandler(button_click))
+    
+    return dispatcher
 def user_in_channel(user_id) -> bool:
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
@@ -94,30 +131,6 @@ def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
-def find_movie(update: Update, context) -> None:
-    query = update.message.text.strip()
-    user_id = update.message.from_user.id
-    
-    # Check if the user has already initiated a search to prevent multiple messages
-    if user_id not in search_results_cache:
-        # Send the searching message once
-        search_results = update.message.reply_text("Searching for movies... Please wait.")
-        
-        # Perform the movie search
-        movies_list = search_movies(query)
-        
-        # Save results in the cache
-        search_results_cache[user_id] = movies_list
-
-        # Process the search results
-        if movies_list:
-            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-        else:
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-    else:
-        update.message.reply_text("A search is already in progress. Please wait for results.")
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
