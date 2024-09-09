@@ -14,8 +14,7 @@ async def search_movies(query):
             async with session.get(search_url, headers=headers, timeout=10) as response:
                 if response.status == 200:
                     content = await response.text()
-                    soup = BeautifulSoup(content, 'html.parser')
-                    movies = []
+                    soup = BeautifulSoup(response.content, 'lxml')
                     for item in soup.find_all('div', class_='A2'):
                         title_tag = item.find('a', href=True).find_next('b').find('span')
                         title = title_tag.get_text(strip=True) if title_tag else "No Title"
