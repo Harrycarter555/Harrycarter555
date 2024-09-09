@@ -60,7 +60,9 @@ def user_in_channel(user_id) -> bool:
         if response.get('ok') and 'result' in response:
             status = response['result']['status']
             return status in ['member', 'administrator', 'creator']
-        return False
+        else:
+            logger.error(f"Error in API response: {response}")
+            return False
     except Exception as e:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
