@@ -84,28 +84,30 @@ def get_download_links(movie_url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
-            
+
             # Handle <a> tags with class 'dl'
             for a in soup.find_all('a', class_='dl', href=True):
                 download_links.append({
                     'url': a['href'],
                     'text': a.get_text(strip=True)
                 })
-            
-            # Handle <div> tags with class 'dl'
-            for div in soup.find_all('div', class_='dl'):
-                link = div.find('a', href=True)
-                if link:
-                    download_links.append({
-                        'url': link['href'],
-                        'text': div.get_text(strip=True)
-                    })
-                else:
-                    download_links.append({
-                        'url': '#',  # Placeholder URL for <div> without an <a> tag
-                        'text': div.get_text(strip=True)
-                    })
-            
+
+            # Handle <div> tags with classes 'dl', 'dll', 'dlll'
+            for class_name in ['dl', 'dll', 'dlll']:
+                for div in soup.find_all('div', class_=class_name):
+                    # Extract text and URL
+                    link = div.find('a', href=True)
+                    if link:
+                        download_links.append({
+                            'url': link['href'],
+                            'text': div.get_text(strip=True)
+                        })
+                    else:
+                        download_links.append({
+                            'url': '#',  # Placeholder URL for <div> without an <a> tag
+                            'text': div.get_text(strip=True)
+                        })
+
             return download_links
         else:
             logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
@@ -174,7 +176,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://yourdomain.com/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
