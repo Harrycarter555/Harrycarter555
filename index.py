@@ -151,10 +151,11 @@ def button_click(update: Update, context) -> None:
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
 
-    # Create InlineKeyboardMarkup with red buttons for download links
+    # Create InlineKeyboardMarkup with buttons for download links
     keyboard = []
     for link in download_links:
-        keyboard.append([InlineKeyboardButton("Download", url=link)])
+        # Use the text 'Download' for button label
+        keyboard.append([InlineKeyboardButton("🔗 Download", url=link)])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
