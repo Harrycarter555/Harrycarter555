@@ -7,10 +7,12 @@ from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryH
 from dotenv import load_dotenv
 import logging
 
+# Load environment variables
 load_dotenv()
 
 # Setup logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = "-1002214699257"  # Replace with your actual private channel ID
@@ -30,20 +32,19 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-def user_in_channel(user_id):
+def user_in_channel(user_id) -> bool:
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
         response = requests.get(url).json()
         if response.get('ok') and 'result' in response:
             status = response['result']['status']
             return status in ['member', 'administrator', 'creator']
-        else:
-            return False
+        return False
     except Exception as e:
-        logging.error(f"Exception while checking user channel status: {e}")
+        logger.error(f"Exception while checking user channel status: {e}")
         return False
 
-def search_movies(query):
+def search_movies(query: str):
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {
@@ -69,13 +70,13 @@ def search_movies(query):
                 })
             return movies
         else:
-            logging.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
+            logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
             return []
     except Exception as e:
-        logging.error(f"Error during movie search: {e}")
+        logger.error(f"Error during movie search: {e}")
         return []
 
-def get_download_links(movie_url):
+def get_download_links(movie_url: str):
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -103,18 +104,18 @@ def get_download_links(movie_url):
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
                     download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
-            # Filter out invalid URLs (e.g., URLs without host, specific invalid URLs)
+            # Filter out invalid URLs
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
-                if url.startswith('http') and 'cank.xyz' not in url  # Exclude specific invalid URLs
+                if url.startswith('http') and 'cank.xyz' not in url
             ]
             return filtered_links
         else:
-            logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
+            logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
             return []
     except Exception as e:
-        logging.error(f"Error while fetching download links: {e}")
+        logger.error(f"Error while fetching download links: {e}")
         return []
 
 def find_movie(update: Update, context) -> None:
@@ -125,9 +126,7 @@ def find_movie(update: Update, context) -> None:
     
     if movies_list:
         search_results_cache[user_id] = movies_list
-        keyboard = []
-        for idx, movie in enumerate(movies_list):
-            keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
+        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
@@ -145,9 +144,7 @@ def button_click(update: Update, context) -> None:
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
 
-    keyboard = []
-    for link in download_links:
-        keyboard.append([InlineKeyboardButton(link['text'], url=link['url'])])
+    keyboard = [[InlineKeyboardButton(link['text'], url=link['url'])] for link in download_links]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
