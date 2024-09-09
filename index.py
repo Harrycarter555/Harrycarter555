@@ -103,13 +103,11 @@ def get_download_links(movie_url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
-
-            # Find all <a> tags with the class 'dl'
-            for link in soup.find_all('a', class_='dl'):
-                href = link.get('href', '')
-                if href:
+            for div in soup.find_all('div', class_='dll'):
+                link_tag = div.find('a', href=True)
+                if link_tag:
+                    href = link_tag['href']
                     download_links.append(href)
-            
             logging.debug(f"Download links found: {download_links}")
             return download_links
         else:
@@ -153,13 +151,17 @@ def button_click(update: Update, context) -> None:
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
 
-    # Format download links to display only href
-    formatted_links = '\n'.join(f'<a href="{link}">Download Link</a>' for link in download_links)
+    # Create InlineKeyboardMarkup with red buttons for download links
+    keyboard = []
+    for link in download_links:
+        keyboard.append([InlineKeyboardButton("Download", url=link)])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     if image_url:
-        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nDownload Links:\n{formatted_links}", parse_mode='HTML')
+        query.message.reply_photo(photo=image_url, caption=title, reply_markup=reply_markup)
     else:
-        query.message.reply_text(f"{title}\n\nDownload Links:\n{formatted_links}", parse_mode='HTML')
+        query.message.reply_text(title, reply_markup=reply_markup)
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
