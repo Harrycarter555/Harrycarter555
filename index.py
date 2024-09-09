@@ -5,7 +5,8 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 from dotenv import load_dotenv
 import logging
-from movies_scraper import search_movies, get_download_links
+from threading import Thread
+from movies_scraper import search_movies
 
 load_dotenv()
 
@@ -47,26 +48,28 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
     search_results = update.message.reply_text("Searching for movies... Please wait.")
-    try:
-        movies_list = search_movies(query)
-        
-        if movies_list:
-            search_results_cache[user_id] = movies_list
-            keyboard = []
-            for idx, movie in enumerate(movies_list):
-                keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-        else:
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-    except Exception as e:
-        logging.error(f"Error during movie search: {e}")
-        search_results.edit_text('An error occurred while searching for movies.')
+
+    def search_and_reply():
+        try:
+            movies_list = search_movies(query)
+            if movies_list:
+                search_results_cache[user_id] = movies_list
+                keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+            else:
+                search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+        except Exception as e:
+            logging.error(f"Error during movie search: {e}")
+            search_results.edit_text('An error occurred while searching for movies.')
+
+    # Start the search in a new thread to prevent blocking
+    Thread(target=search_and_reply).start()
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
-    
+
     user_id = query.from_user.id
     selected_movie_idx = int(query.data)
     selected_movie = search_results_cache[user_id][selected_movie_idx]
