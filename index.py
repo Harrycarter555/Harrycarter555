@@ -32,11 +32,9 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-from telegram.ext import Filters
-
 def find_movie(update: Update, context) -> None:
-    if update.message.text.startswith("/start"):
-        # Agar kisi tarike se yeh function `/start` ko handle kar raha hai to ye bypass ho
+    # Check if the input is a command, ignore it in this function
+    if update.message.text.startswith('/'):
         return
     
     query = update.message.text.strip()
@@ -52,7 +50,6 @@ def find_movie(update: Update, context) -> None:
         search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
         search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     
