@@ -13,8 +13,8 @@ load_dotenv()
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHANNEL_ID = "-1002170013697"  # Replace with your actual private channel ID
-CHANNEL_INVITE_LINK = "https://t.me/+dUXsdWu9dlk4ZTk9"  # Replace with your actual invitation link
+CHANNEL_ID = "-1002214699257"  # Replace with your actual private channel ID
+CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
 # Dummy storage for demonstration (replace with actual persistent storage solution)
