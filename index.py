@@ -107,9 +107,8 @@ def get_download_links(movie_url):
             # Find all <a> tags with the class 'dl'
             for link in soup.find_all('a', class_='dl'):
                 href = link.get('href', '')
-                link_text = link.get_text(strip=True)
                 if href:
-                    download_links.append(f'<a href="{href}" class="dl">{link_text}</a>')
+                    download_links.append(href)
             
             logging.debug(f"Download links found: {download_links}")
             return download_links
@@ -154,10 +153,13 @@ def button_click(update: Update, context) -> None:
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
 
+    # Format download links to display only href
+    formatted_links = '\n'.join(f'<a href="{link}">Download Link</a>' for link in download_links)
+
     if image_url:
-        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nDownload Links:\n{formatted_links}", parse_mode='HTML')
     else:
-        query.message.reply_text(f"{title}\n\nDownload Links:\n{', '.join(download_links)}")
+        query.message.reply_text(f"{title}\n\nDownload Links:\n{formatted_links}", parse_mode='HTML')
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
