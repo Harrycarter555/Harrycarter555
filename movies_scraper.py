@@ -25,11 +25,18 @@ async def search_movies(query):
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(search_url, headers=headers, timeout=10) as response:
+                logging.debug(f"Request sent to: {search_url}, Status code: {response.status}")
+                
                 if response.status == 200:
                     content = await response.text()
                     soup = BeautifulSoup(content, 'html.parser')
+                    
+                    # Log the first 500 characters of the page content for debugging
+                    logging.debug(f"Received content (first 500 chars): {content[:500]}")
+                    
                     # Parsing movie entries
                     for item in soup.find_all('div', class_='A2'):
+                        logging.debug(f"Movie div found: {item}")
                         title_tag = item.find('a', href=True).find_next('b').find('span')
                         title = title_tag.get_text(strip=True) if title_tag else "No Title"
                         movie_url_tag = item.find('a', href=True)
@@ -43,6 +50,8 @@ async def search_movies(query):
                             'image': image_url,
                             'download_links': download_links
                         })
+                    
+                    logging.debug(f"Parsed movies: {movies}")
                     return movies
                 else:
                     logging.error(f"Failed to retrieve search results. Status Code: {response.status}")
@@ -51,7 +60,7 @@ async def search_movies(query):
             logging.error("Request timed out.")
             return []
         except Exception as e:
-            logging.error(f"Exception occurred: {e}")
+            logging.error(f"An exception occurred: {e}")
             return []
 
 async def get_download_links(session, movie_url):
@@ -70,6 +79,8 @@ async def get_download_links(session, movie_url):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         async with session.get(movie_url, headers=headers) as response:
+            logging.debug(f"Request sent to: {movie_url}, Status code: {response.status}")
+            
             if response.status == 200:
                 soup = BeautifulSoup(await response.text(), 'html.parser')
                 download_links = set()
@@ -97,6 +108,7 @@ async def get_download_links(session, movie_url):
                     for url, text in download_links
                     if url.startswith('http') and 'cank.xyz' not in url
                 ]
+                logging.debug(f"Filtered download links: {filtered_links}")
                 return filtered_links
             else:
                 logging.error(f"Failed to retrieve download links. Status Code: {response.status}")
@@ -110,5 +122,9 @@ if __name__ == "__main__":
     query = "example movie"
     loop = asyncio.get_event_loop()
     movies = loop.run_until_complete(search_movies(query))
-    for movie in movies:
-        print(f"Title: {movie['title']}, URL: {movie['url']}, Image: {movie['image']}, Download Links: {movie['download_links']}")
+    
+    if movies:
+        for movie in movies:
+            print(f"Title: {movie['title']}, URL: {movie['url']}, Image: {movie['image']}, Download Links: {movie['download_links']}")
+    else:
+        print("An error occurred while searching for movies.")
