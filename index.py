@@ -87,13 +87,24 @@ def get_download_links(movie_url):
             
             # Handle <a> tags with class 'dl'
             for a in soup.find_all('a', class_='dl', href=True):
-                download_links.append(a['href'])
+                download_links.append({
+                    'url': a['href'],
+                    'text': a.get_text(strip=True)
+                })
             
             # Handle <div> tags with class 'dl'
             for div in soup.find_all('div', class_='dl'):
                 link = div.find('a', href=True)
                 if link:
-                    download_links.append(link['href'])
+                    download_links.append({
+                        'url': link['href'],
+                        'text': div.get_text(strip=True)
+                    })
+                else:
+                    download_links.append({
+                        'url': '#',  # Placeholder URL for <div> without an <a> tag
+                        'text': div.get_text(strip=True)
+                    })
             
             return download_links
         else:
@@ -133,7 +144,7 @@ def button_click(update: Update, context) -> None:
 
     keyboard = []
     for link in download_links:
-        keyboard.append([InlineKeyboardButton("🔗 Download", url=link)])
+        keyboard.append([InlineKeyboardButton(link['text'], url=link['url'])])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
