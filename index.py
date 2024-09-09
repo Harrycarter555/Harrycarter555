@@ -46,17 +46,21 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
     search_results = update.message.reply_text("Searching for movies... Please wait.")
-    movies_list = search_movies(query)
-    
-    if movies_list:
-        search_results_cache[user_id] = movies_list
-        keyboard = []
-        for idx, movie in enumerate(movies_list):
-            keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-    else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+    try:
+        movies_list = search_movies(query)
+        
+        if movies_list:
+            search_results_cache[user_id] = movies_list
+            keyboard = []
+            for idx, movie in enumerate(movies_list):
+                keyboard.append([InlineKeyboardButton(movie['title'], callback_data=str(idx))])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        else:
+            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+    except Exception as e:
+        logging.error(f"Error during movie search: {e}")
+        search_results.edit_text('An error occurred while searching for movies.')
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
@@ -97,16 +101,23 @@ def index():
 @app.route(f'/{TOKEN}', methods=['POST'])
 def respond():
     update = Update.de_json(request.get_json(force=True), bot)
-    setup_dispatcher().process_update(update)
+    try:
+        setup_dispatcher().process_update(update)
+    except Exception as e:
+        logging.error(f"Exception while processing update: {e}")
     return 'ok'
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
+    try:
+        s = bot.setWebhook(webhook_url)
+        if s:
+            return "Webhook setup ok"
+        else:
+            return "Webhook setup failed"
+    except Exception as e:
+        logging.error(f"Exception while setting webhook: {e}")
         return "Webhook setup failed"
 
 if __name__ == '__main__':
