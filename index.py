@@ -6,6 +6,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -44,13 +45,13 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
-def search_movies(query: str):
+async def search_movies(query: str):
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(search_url, headers=headers)
+        response = await asyncio.to_thread(requests.get, search_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
@@ -61,7 +62,7 @@ def search_movies(query: str):
                 movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
-                download_links = get_download_links(movie_url)
+                download_links = await get_download_links(movie_url)
                 movies.append({
                     'title': title,
                     'url': movie_url,
@@ -76,12 +77,12 @@ def search_movies(query: str):
         logger.error(f"Error during movie search: {e}")
         return []
 
-def get_download_links(movie_url: str):
+async def get_download_links(movie_url: str):
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(movie_url, headers=headers)
+        response = await asyncio.to_thread(requests.get, movie_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()  # Use a set to avoid duplicates
@@ -118,19 +119,20 @@ def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
-def find_movie(update: Update, context) -> None:
+async def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
-    search_results = update.message.reply_text("Searching for movies... Please wait.")
-    movies_list = search_movies(query)
+    search_results = await update.message.reply_text("Searching for movies... Please wait.")
+    
+    movies_list = await search_movies(query)
     
     if movies_list:
         search_results_cache[user_id] = movies_list
         keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        await search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+        await search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
