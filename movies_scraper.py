@@ -1,81 +1,77 @@
 import requests
 from bs4 import BeautifulSoup
-
-url_list = {}
-
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Referer': 'https://1flix.to/',
-}
+import logging
 
 def search_movies(query):
-    movies_list = []
+    search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
-        search_url = f"https://1flix.to/search/{query.replace(' ', '+')}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
         response = requests.get(search_url, headers=headers)
-        website = BeautifulSoup(response.text, "html.parser")
-
-        print(f"[DEBUG] Fetching URL: {search_url}")
-        print(f"[DEBUG] Response Status Code: {response.status_code}")
-        print(f"[DEBUG] Response Text: {response.text[:1000]}")  # Print first 1000 characters for inspection
-
-        # Find all movie elements
-        movies = website.find_all("a", {'class': 'film-poster-ahref'})
-        print(f"[DEBUG] Found Movies: {len(movies)}")
-
-        for index, movie in enumerate(movies):
-            movie_details = {}
-            title = movie['title']
-            poster_img = movie.find("i", {'class': 'fa fa-play'}).parent.find("img")  # Adjust this line based on actual HTML
-
-            if poster_img and poster_img.has_attr('src'):
-                image_url = poster_img['src']
-            else:
-                image_url = "default_image_url"  # Replace with a default image if no image is found
-
-            movie_details["id"] = f"link{index}"
-            movie_details["title"] = title
-            movie_details["image"] = image_url  # Use the extracted image URL
-
-            url_list[movie_details["id"]] = movie['href']
-            movies_list.append(movie_details)
-    except Exception as e:
-        print(f"[ERROR] Exception in search_movies: {e}")
-    return movies_list
-
-def get_movie(movie_id):
-    movie_details = {}
-    try:
-        movie_url = url_list[movie_id]
-        movie_page_link = BeautifulSoup(requests.get(movie_url, headers=headers).text, "html.parser")
-
-        print(f"[DEBUG] Fetching Movie Page URL: {movie_url}")
-        print(f"[DEBUG] Response Text: {requests.get(movie_url, headers=headers).text[:1000]}")  # Print first 1000 characters for inspection
-
-        if movie_page_link:
-            title_div = movie_page_link.find("div", {'class': 'mvic-desc'})  # Adjust based on actual HTML
-            if title_div:
-                title = title_div.h3.text
-                movie_details["title"] = title
-
-            final_links = {}
-
-            # Adjust the parsing for links accordingly.
-            links = movie_page_link.find_all("a", {'class': 'some-link-class'})  # Adjust based on actual HTML
-            print(f"[DEBUG] Found Links: {len(links)}")
-            for i in links:
-                final_links[f"{i.text}"] = i['href']
-
-            # Adjust additional link parsing based on actual HTML structure.
-            button_links = movie_page_link.find_all("a", {'class': 'button'})  # Example
-            print(f"[DEBUG] Found Button Links: {len(button_links)}")
-            for i in button_links:
-                if "href" in i.attrs and "title" in i.attrs:
-                    final_links[f"{i.text} [{i['title']}]"] = i['href']
-
-            movie_details["links"] = final_links
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            movies = []
+            for item in soup.find_all('div', class_='A2'):
+                title_tag = item.find('a', href=True).find_next('b').find('span')
+                title = title_tag.get_text(strip=True) if title_tag else "No Title"
+                movie_url_tag = item.find('a', href=True)
+                movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+                image_tag = item.find('img')
+                image_url = image_tag['src'] if image_tag else None
+                download_links = get_download_links(movie_url)
+                movies.append({
+                    'title': title,
+                    'url': movie_url,
+                    'image': image_url,
+                    'download_links': download_links
+                })
+            return movies
         else:
-            print(f"[DEBUG] No movie page link found for {movie_id}")
+            logging.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
+            return []
     except Exception as e:
-        print(f"[ERROR] Exception in get_movie: {e}")
-    return movie_details
+        logging.error(f"Error during movie search: {e}")
+        return []
+
+def get_download_links(movie_url):
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
+        response = requests.get(movie_url, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            download_links = set()  # Use a set to avoid duplicates
+
+            # Handle <a> tags with classes 'dl', 'dll', 'dlll'
+            for class_name in ['dl', 'dll', 'dlll']:
+                for div in soup.find_all('div', class_=class_name):
+                    link = div.find_previous('a', href=True)
+                    if link:
+                        download_links.add((link['href'], div.get_text(strip=True)))
+                    else:
+                        download_links.add(('#', div.get_text(strip=True)))
+
+            # Handle <a> tags with the download button format
+            for a_tag in soup.find_all('a', href=True, class_='dl'):
+                download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
+            
+            # Handle cases with ▼ and center alignments
+            for a_tag in soup.find_all('a', href=True):
+                if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
+                    download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
+
+            # Filter out invalid URLs (e.g., URLs without host, specific invalid URLs)
+            filtered_links = [
+                {'url': url, 'text': text}
+                for url, text in download_links
+                if url.startswith('http') and 'cank.xyz' not in url  # Exclude specific invalid URLs
+            ]
+            return filtered_links
+        else:
+            logging.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
+            return []
+    except Exception as e:
+        logging.error(f"Error while fetching download links: {e}")
+        return []
