@@ -95,12 +95,11 @@ def get_download_links(movie_url):
                         download_links.add(('#', div.get_text(strip=True)))
 
             # Handle <a> tags with the download button format
+            for a_tag in soup.find_all('a', href=True, class_='dl'):
+                download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
+            
+            # Handle cases with ▼ and center alignments
             for a_tag in soup.find_all('a', href=True):
-                div_tag = a_tag.find('div')
-                if div_tag and div_tag.has_attr('class'):
-                    download_links.add((a_tag['href'], div_tag.get_text(strip=True)))
-                
-                # Handle cases with ▼ and center alignments
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
                     download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
