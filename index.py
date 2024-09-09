@@ -6,7 +6,6 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
-import time
 
 load_dotenv()
 
@@ -50,7 +49,7 @@ def search_movies(query):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(search_url, headers=headers, timeout=10)  # Add a timeout for the request
+        response = requests.get(search_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
@@ -81,7 +80,7 @@ def get_download_links(movie_url):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(movie_url, headers=headers, timeout=10)  # Add a timeout for the request
+        response = requests.get(movie_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()  # Use a set to avoid duplicates
@@ -172,7 +171,18 @@ def index():
 
 @app.route(f'/{TOKEN}', methods=['POST'])
 def respond():
-    start_time = time.time()
     update = Update.de_json(request.get_json(force=True), bot)
     setup_dispatcher().process_update(update)
-    processing_time = time.time() - start_time
+    return 'ok'
+
+@app.route('/setwebhook', methods=['GET', 'POST'])
+def set_webhook():
+    webhook_url = f'https://yourdomain.com/{TOKEN}'  # Update with your deployment URL
+    s = bot.setWebhook(webhook_url)
+    if s:
+        return "Webhook setup ok"
+    else:
+        return "Webhook setup failed"
+
+if __name__ == '__main__':
+    app.run(debug=True)
