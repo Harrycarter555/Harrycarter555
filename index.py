@@ -6,7 +6,6 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
-import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -45,14 +44,16 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
-async def search_movies(query: str):
+def search_movies(query: str):
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
+    logger.info(f"Searching URL: {search_url}")  # Log the search URL
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = await asyncio.to_thread(requests.get, search_url, headers=headers)
+        response = requests.get(search_url, headers=headers)
         if response.status_code == 200:
+            logger.info("Successfully retrieved search results")
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
             for item in soup.find_all('div', class_='A2'):
@@ -62,7 +63,7 @@ async def search_movies(query: str):
                 movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
-                download_links = await get_download_links(movie_url)
+                download_links = get_download_links(movie_url)
                 movies.append({
                     'title': title,
                     'url': movie_url,
@@ -77,17 +78,16 @@ async def search_movies(query: str):
         logger.error(f"Error during movie search: {e}")
         return []
 
-async def get_download_links(movie_url: str):
+def get_download_links(movie_url: str):
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = await asyncio.to_thread(requests.get, movie_url, headers=headers)
+        response = requests.get(movie_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            download_links = set()  # Use a set to avoid duplicates
+            download_links = set()
 
-            # Handle <a> tags with classes 'dl', 'dll', 'dlll'
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
@@ -96,16 +96,13 @@ async def get_download_links(movie_url: str):
                     else:
                         download_links.add(('#', div.get_text(strip=True)))
 
-            # Handle <a> tags with the download button format
             for a_tag in soup.find_all('a', href=True, class_='dl'):
                 download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-            
-            # Handle cases with ▼ and center alignments
+
             for a_tag in soup.find_all('a', href=True):
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
                     download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
-            # Filter out invalid URLs
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
@@ -119,20 +116,20 @@ async def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
-async def find_movie(update: Update, context) -> None:
+def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
-    search_results = await update.message.reply_text("Searching for movies... Please wait.")
-    
-    movies_list = await search_movies(query)
+    logger.info(f"User {user_id} searched for: {query}")
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
+    movies_list = search_movies(query)
     
     if movies_list:
         search_results_cache[user_id] = movies_list
         keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        await search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
@@ -147,7 +144,6 @@ def button_click(update: Update, context) -> None:
     download_links = selected_movie.get('download_links', [])
 
     keyboard = [[InlineKeyboardButton(link['text'], url=link['url'])] for link in download_links]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if image_url:
