@@ -103,11 +103,14 @@ def get_download_links(movie_url):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = []
-            for div in soup.find_all('div', class_='dll'):
-                link_tag = div.find('a', href=True)
-                link_text = link_tag.get_text(strip=True)
-                href = link_tag['href']
-                download_links.append(f'<a href="{href}" class="dl">{link_text}</a>')
+
+            # Find all <a> tags with the class 'dl'
+            for link in soup.find_all('a', class_='dl'):
+                href = link.get('href', '')
+                link_text = link.get_text(strip=True)
+                if href:
+                    download_links.append(f'<a href="{href}" class="dl">{link_text}</a>')
+            
             logging.debug(f"Download links found: {download_links}")
             return download_links
         else:
@@ -151,18 +154,10 @@ def button_click(update: Update, context) -> None:
     image_url = selected_movie.get('image', None)
     download_links = selected_movie.get('download_links', [])
 
-    # Format download links
-    formatted_links = '\n'.join(download_links)
-
     if image_url:
-        query.message.reply_photo(
-            photo=image_url,
-            caption=f"{title}\n\nDownload Links:\n{formatted_links}"
-        )
+        query.message.reply_photo(photo=image_url, caption=f"{title}\n\nDownload Links:\n{', '.join(download_links)}")
     else:
-        query.message.reply_text(
-            f"{title}\n\nDownload Links:\n{formatted_links}"
-        )
+        query.message.reply_text(f"{title}\n\nDownload Links:\n{', '.join(download_links)}")
 
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
