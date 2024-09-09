@@ -51,7 +51,7 @@ def search_movies(query: str):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(search_url, headers=headers, timeout=0.01)  # Set a timeout of 10 seconds
+        response = requests.get(search_url, headers=headers, timeout=3)  # Set a timeout of 10 seconds
         if response.status_code == 200:
             logger.info("Successfully retrieved search results")
             soup = BeautifulSoup(response.content, 'html.parser')
