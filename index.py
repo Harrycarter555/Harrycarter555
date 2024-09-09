@@ -51,7 +51,7 @@ def search_movies(query: str):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(search_url, headers=headers)
+        response = requests.get(search_url, headers=headers, timeout=10)  # Set a timeout of 10 seconds
         if response.status_code == 200:
             logger.info("Successfully retrieved search results")
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -74,7 +74,7 @@ def search_movies(query: str):
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
             return []
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error during movie search: {e}")
         return []
 
@@ -84,7 +84,7 @@ def get_download_links(movie_url: str):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        response = requests.get(movie_url, headers=headers)
+        response = requests.get(movie_url, headers=headers, timeout=10)  # Set a timeout of 10 seconds
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()
@@ -113,7 +113,7 @@ def get_download_links(movie_url: str):
         else:
             logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
             return []
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error while fetching download links: {e}")
         return []
 
@@ -175,11 +175,11 @@ def respond():
         return 'ok', 200
     except Exception as e:
         logger.error(f"Error processing update: {e}")
-        return 'Error', 504  # Return 504 if the process fails
+        return 'Error', 500  # Changed to 500 Internal Server Error for better diagnostic
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your actual URL
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Ensure this URL is correct
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
