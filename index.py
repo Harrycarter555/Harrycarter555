@@ -19,6 +19,9 @@ CHANNEL_ID = "-1002214699257"  # Replace with your actual private channel ID
 CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
+# Flask app setup
+app = Flask(__name__)
+
 # Function to check if user is in the channel
 def user_in_channel(user_id) -> bool:
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
@@ -119,25 +122,18 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
     logger.info(f"User {user_id} searched for: {query}")
-
-    # Check if the search result message has already been sent
-    if 'search_message' not in context.chat_data:
-        search_results = update.message.reply_text("Searching for movies... Please wait.")
-        context.chat_data['search_message'] = search_results
-    else:
-        search_results = context.chat_data['search_message']
+    
+    # Avoid multiple "Searching for movies..." messages
+    search_results_message = update.message.reply_text("Searching for movies... Please wait.")
     
     movies_list = search_movies(query)
     
     if movies_list:
         keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        search_results_message.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-    
-    # Clear the search_message after displaying results
-    context.chat_data.pop('search_message', None)
+        search_results_message.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
 # Button click handler
 def button_click(update: Update, context) -> None:
@@ -166,8 +162,6 @@ def setup_dispatcher():
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
     dispatcher.add_handler(CallbackQueryHandler(button_click))
     return dispatcher
-
-app = Flask(__name__)
 
 @app.route('/')
 def index():
