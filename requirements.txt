@@ -1,5 +1,11 @@
-Flask==2.3.2
-python-telegram-bot==13.7
+
 beautifulsoup4==4.12.2
+Flask==2.3.3
+python-telegram-bot==13.7
 requests==2.31.0
 python-dotenv==1.0.0
+telethon==1.24.0
+urllib3==1.26.19
+pyrogram
+tgcrypto
+aiohttp
