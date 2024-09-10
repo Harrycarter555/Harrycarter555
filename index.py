@@ -127,17 +127,20 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Only show "Searching..." once
-    search_results = update.message.reply_text("Searching for movies... Please wait.")
-    movies_list = search_movies(query)
+    # Only show "Searching..." once the user enters a search query
+    if query:
+        search_results = update.message.reply_text("Searching for movies... Please wait.")
+        movies_list = search_movies(query)
     
-    if movies_list:
-        search_results_cache[user_id] = movies_list
-        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        if movies_list:
+            search_results_cache[user_id] = movies_list
+            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+        else:
+            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
     else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+        update.message.reply_text('Please enter a movie name to search.')
 
 def button_click(update: Update, context) -> None:
     query = update.callback_query
