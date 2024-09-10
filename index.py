@@ -28,7 +28,7 @@ def welcome(update: Update, context) -> None:
     # Clear cache when user sends /start
     if user_id in search_results_cache:
         del search_results_cache[user_id]
-    
+
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
@@ -126,7 +126,7 @@ def get_download_links(movie_url: str):
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
-    
+
     # Only show "Searching..." once
     search_results = update.message.reply_text("Searching for movies... Please wait.")
     movies_list = search_movies(query)
