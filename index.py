@@ -47,37 +47,53 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-# Movie search function (runs in the background to avoid blocking main thread)
+# Movie search function
 def search_movies(query: str):
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
+    
     try:
+        # Fetching the search page
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         response = requests.get(search_url, headers=headers)
+
         if response.status_code == 200:
+            # Parsing the HTML response
             soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Finding movie results
             movies = []
-            for item in soup.find_all('div', class_='A2'):
-                title_tag = item.find('a', href=True).find_next('b').find('span')
+            movie_containers = soup.find_all('div', class_='A2')  # Make sure to update this selector if needed
+
+            for item in movie_containers:
+                # Extracting movie title
+                title_tag = item.find('a', href=True)
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
+
+                # Extracting movie URL
                 movie_url_tag = item.find('a', href=True)
                 movie_url = "https://filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+
+                # Extracting movie image URL
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
-                download_links = get_download_links(movie_url)
+
+                # Add the movie to the list
                 movies.append({
                     'title': title,
                     'url': movie_url,
-                    'image': image_url,
-                    'download_links': download_links
+                    'image': image_url
                 })
-            return movies
+
+            return movies  # Returning list of movies
+
         else:
-            logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
+            print(f"Failed to retrieve search results. Status Code: {response.status_code}")
             return []
+
     except Exception as e:
-        logger.error(f"Error during movie search: {e}")
+        print(f"Error during movie search: {e}")
         return []
 
 # Fetch download links
