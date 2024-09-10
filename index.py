@@ -51,9 +51,9 @@ def user_in_channel(user_id) -> bool:
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
     # Replace spaces with '+' for the search query
-    query_encoded = query.replace(" ", "+")
+  
     
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}+"
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
     
     try:
         headers = {
