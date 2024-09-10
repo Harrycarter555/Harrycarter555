@@ -3,10 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask, request
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 from dotenv import load_dotenv
 import logging
-import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -24,7 +23,7 @@ bot = Bot(TOKEN)
 user_membership_status = {}
 search_results_cache = {}
 
-def welcome(update: Update, context) -> None:
+def welcome(update, context):
     user_id = update.message.from_user.id
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
@@ -33,7 +32,7 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-def find_movie(update: Update, context) -> None:
+def find_movie(update, context):
     if update.message.text.startswith('/'):
         return
     
@@ -113,7 +112,7 @@ def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
-def button_click(update: Update, context) -> None:
+def button_click(update, context):
     query = update.callback_query
     query.answer()
     user_id = query.from_user.id
@@ -129,12 +128,11 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
-def setup_dispatcher() -> Application:
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler('start', welcome))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, find_movie))
-    application.add_handler(CallbackQueryHandler(button_click))
-    return application
+def setup_dispatcher(updater: Updater):
+    dp = updater.dispatcher
+    dp.add_handler(CommandHandler('start', welcome))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    dp.add_handler(CallbackQueryHandler(button_click))
 
 # Flask setup for Vercel
 app = Flask(__name__)
@@ -142,11 +140,13 @@ app = Flask(__name__)
 @app.route('/api', methods=['POST'])
 def respond():
     update = Update.de_json(request.get_json(force=True), bot)
-    asyncio.run(setup_dispatcher().process_update(update))
+    updater = Updater(TOKEN, use_context=True)
+    setup_dispatcher(updater)
+    updater.dispatcher.process_update(update)
     return 'ok'
 
 @app.route('/setwebhook', methods=['GET'])
 def set_webhook():
-    webhook_url = f'https://<your-vercel-app>.vercel.app/api'  # Update with Vercel deployment URL
+    webhook_url = f'https://harrycarter555.vercel.app/api'  # Update with Vercel deployment URL
     success = bot.setWebhook(webhook_url)
     return "Webhook set!" if success else "Failed to set webhook"
