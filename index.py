@@ -50,13 +50,9 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Check if multiple words are present
-    if " " in query:
-        # Replace spaces with '+'
-        query_encoded = query.replace(" ", "+")
-    else:
-        query_encoded = query  # Single word query remains the same
-
+    # Always add a '+' at the end of the query
+    query_encoded = query + "+"
+    
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
     
     try:
@@ -88,6 +84,7 @@ def search_movies(query: str):
     except Exception as e:
         logger.error(f"Error during movie search: {e}")
         return []
+
 
 # Function to get download links for a movie
 def get_download_links(movie_url: str):
