@@ -49,14 +49,12 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
-    logger.info(f"Search URL: {search_url}")
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         response = requests.get(search_url, headers=headers)
-        logger.info(f"Response Status Code: {response.status_code}")
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
@@ -64,7 +62,7 @@ def search_movies(query: str):
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 movie_url_tag = item.find('a', href=True)
-                movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+                movie_url = "https://filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
                 download_links = get_download_links(movie_url)
@@ -74,7 +72,6 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
-            logger.info(f"Found movies: {movies}")
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
@@ -107,7 +104,6 @@ def get_download_links(movie_url: str):
                 for url, text in download_links
                 if url.startswith('http') and 'cank.xyz' not in url
             ]
-            logger.info(f"Download links: {filtered_links}")
             return filtered_links
         else:
             logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
@@ -121,10 +117,9 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Check if user already has a search in progress
-    if user_id in search_results_cache and search_results_cache[user_id]:
-        update.message.reply_text("You already have a search in progress. Please wait or choose another query.")
-        return
+    # Clear previous search results for the user
+    if user_id in search_results_cache:
+        search_results_cache.pop(user_id, None)  # Remove existing search results
 
     # Add user to cache to prevent duplicate searches
     search_results_cache[user_id] = None  # Set to None until search completes
@@ -192,6 +187,7 @@ def respond():
     update = Update.de_json(request.get_json(force=True), bot)
     setup_dispatcher().process_update(update)
     return 'ok'
+
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
