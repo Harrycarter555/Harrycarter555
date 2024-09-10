@@ -1,17 +1,14 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, request
+from urllib.parse import quote_plus  # URL encoding for search query
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
-from dotenv import load_dotenv
+from flask import Flask, request
 import logging
 
-# Load environment variables
-load_dotenv()
-
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -52,11 +49,12 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
-# Function to search movies (Handles multiple word queries)
+# Function to search movies (Handles multiple word queries with URL encoding)
 def search_movies(query: str):
-    # Handling multiple word search by replacing spaces with "+"
-    query = "+".join(query.split())  # Ensures single-word and multiple-word searches work properly
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
+    # Handling multiple word search by using `quote_plus` to properly encode the query
+    query_encoded = quote_plus(query)
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
+    
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
