@@ -23,12 +23,15 @@ bot = Bot(TOKEN)
 user_membership_status = {}
 search_results_cache = {}
 
+# The welcome function for the /start command
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
+
     # Clear cache when user sends /start
     if user_id in search_results_cache:
         del search_results_cache[user_id]
 
+    # Check if the user is in the channel
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
@@ -36,6 +39,7 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
+# Check if the user is in the channel
 def user_in_channel(user_id) -> bool:
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
@@ -48,8 +52,9 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
+# Function to search movies
 def search_movies(query: str):
-    query = "+".join(query.split())  # This ensures single-word searches work properly
+    query = "+".join(query.split())  # Ensures single-word searches work properly
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {
@@ -81,6 +86,7 @@ def search_movies(query: str):
         logger.error(f"Error during movie search: {e}")
         return []
 
+# Function to get download links for a movie
 def get_download_links(movie_url: str):
     try:
         headers = {
@@ -91,7 +97,6 @@ def get_download_links(movie_url: str):
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()  # Use a set to avoid duplicates
 
-            # Handle <a> tags with classes 'dl', 'dll', 'dlll'
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
@@ -100,16 +105,13 @@ def get_download_links(movie_url: str):
                     else:
                         download_links.add(('#', div.get_text(strip=True)))
 
-            # Handle <a> tags with the download button format
             for a_tag in soup.find_all('a', href=True, class_='dl'):
                 download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-            
-            # Handle cases with ▼ and center alignments
+
             for a_tag in soup.find_all('a', href=True):
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
                     download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
-            # Filter out invalid URLs
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
@@ -123,11 +125,12 @@ def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
+# Function to handle user movie search
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Only show "Searching..." once the user enters a search query
+    # Only show "Searching..." if a query is provided
     if query:
         search_results = update.message.reply_text("Searching for movies... Please wait.")
         movies_list = search_movies(query)
@@ -142,6 +145,7 @@ def find_movie(update: Update, context) -> None:
     else:
         update.message.reply_text('Please enter a movie name to search.')
 
+# Function to handle movie selection
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
@@ -163,6 +167,7 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
+# Setup the dispatcher
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
