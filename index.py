@@ -49,10 +49,8 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    query = query.replace(" ", "+")
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
-    print(f"Search URL: {search_url}")  # Debugging line to check the URL
-    
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}+"
+    logger.info(f"Search URL: {search_url}")
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -75,8 +73,6 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
-            if not movies:
-                logger.info("No movies found.")
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
