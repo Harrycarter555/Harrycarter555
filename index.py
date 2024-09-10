@@ -49,7 +49,7 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ')}+"
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
     logger.info(f"Search URL: {search_url}")
     try:
         headers = {
@@ -73,6 +73,7 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
+            logger.info(f"Found movies: {movies}")
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
@@ -105,6 +106,7 @@ def get_download_links(movie_url: str):
                 for url, text in download_links
                 if url.startswith('http') and 'cank.xyz' not in url
             ]
+            logger.info(f"Download links: {filtered_links}")
             return filtered_links
         else:
             logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
