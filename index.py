@@ -25,6 +25,11 @@ search_results_cache = {}
 
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
+    
+    # Clear the cache when the user starts a new session
+    if user_id in search_results_cache:
+        del search_results_cache[user_id]
+    
     if user_in_channel(user_id):
         user_membership_status[user_id] = True
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
@@ -45,7 +50,11 @@ def user_in_channel(user_id) -> bool:
         return False
 
 def search_movies(query: str):
-    search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
+    # Replace spaces with '+' for multi-word searches
+    if ' ' in query:
+        query = '+'.join(query.split())
+    
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -90,96 +99,73 @@ def get_download_links(movie_url: str):
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
-                    if link:
-                        download_links.add((link['href'], div.get_text(strip=True)))
-                    else:
-                        download_links.add(('#', div.get_text(strip=True)))
+                    if link and link['href'].startswith("http"):
+                        download_links.add(link['href'])
 
-            # Handle <a> tags with the download button format
-            for a_tag in soup.find_all('a', href=True, class_='dl'):
-                download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-            
-            # Handle cases with ▼ and center alignments
-            for a_tag in soup.find_all('a', href=True):
-                if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
-                    download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-
-            # Filter out invalid URLs
-            filtered_links = [
-                {'url': url, 'text': text}
-                for url, text in download_links
-                if url.startswith('http') and 'cank.xyz' not in url
-            ]
-            return filtered_links
+            return list(download_links)
         else:
-            logger.error(f"Failed to retrieve download links. Status Code: {response.status_code}")
+            logger.error(f"Failed to retrieve movie page. Status Code: {response.status_code}")
             return []
     except Exception as e:
-        logger.error(f"Error while fetching download links: {e}")
+        logger.error(f"Error during fetching download links: {e}")
         return []
 
-def find_movie(update: Update, context) -> None:
-    query = update.message.text.strip()
+def handle_message(update: Update, context) -> None:
     user_id = update.message.from_user.id
-    search_results = update.message.reply_text("Searching for movies... Please wait.")
-    movies_list = search_movies(query)
+    if user_id not in user_membership_status or not user_membership_status[user_id]:
+        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
+        return
+
+    query = update.message.text.strip()
     
-    if movies_list:
-        search_results_cache[user_id] = movies_list
-        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-    else:
-        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-
-def button_click(update: Update, context) -> None:
-    query = update.callback_query
-    query.answer()
+    # Prevent repeated "Searching for movies" messages
+    if user_id in search_results_cache and search_results_cache[user_id].get('query') == query:
+        update.message.reply_text("You already searched for this movie. Please wait while fetching results.")
+        return
     
-    user_id = query.from_user.id
-    selected_movie_idx = int(query.data)
-    selected_movie = search_results_cache[user_id][selected_movie_idx]
+    # Notify user that the search is in progress
+    update.message.reply_text("Searching for movies... Please wait.")
+    
+    # Search for movies and cache the results
+    search_results = search_movies(query)
+    search_results_cache[user_id] = {
+        'query': query,
+        'results': search_results
+    }
 
-    title = selected_movie['title']
-    image_url = selected_movie.get('image', None)
-    download_links = selected_movie.get('download_links', [])
-
-    keyboard = [[InlineKeyboardButton(link['text'], url=link['url'])] for link in download_links]
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    if image_url:
-        query.message.reply_photo(photo=image_url, caption=f"{title}", reply_markup=reply_markup)
+    if not search_results:
+        update.message.reply_text("Sorry, no movies found.")
     else:
-        query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
+        for movie in search_results:
+            buttons = [[InlineKeyboardButton("Download", url=movie['url'])]]
+            reply_markup = InlineKeyboardMarkup(buttons)
+            update.message.reply_photo(
+                photo=movie['image'] if movie['image'] else None,
+                caption=f"Title: {movie['title']}\nDownload links available.",
+                reply_markup=reply_markup
+            )
 
-def setup_dispatcher():
-    dispatcher = Dispatcher(bot, None, use_context=True)
-    dispatcher.add_handler(CommandHandler('start', welcome))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(button_click))
-    return dispatcher
+def main():
+    app = Flask(__name__)
 
-app = Flask(__name__)
+    @app.route(f"/{TOKEN}", methods=["POST"])
+    def respond():
+        update = Update.de_json(request.get_json(), bot)
+        dispatcher.process_update(update)
+        return "ok"
 
-@app.route('/')
-def index():
-    return 'Hello World!'
+    @app.route("/")
+    def index():
+        return "Bot is running!"
 
-@app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
-    update = Update.de_json(request.get_json(force=True), bot)
-    setup_dispatcher().process_update(update)
-    return 'ok'
+    updater = Dispatcher(bot, None, workers=0)
+    
+    # Command and message handlers
+    updater.add_handler(CommandHandler("start", welcome))
+    updater.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-@app.route('/setwebhook', methods=['GET', 'POST'])
-def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
-        return "Webhook setup failed"
+    return app
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app = main()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
