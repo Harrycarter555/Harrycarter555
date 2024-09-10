@@ -49,7 +49,7 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}+"
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ')}+"
     logger.info(f"Search URL: {search_url}")
     try:
         headers = {
