@@ -49,10 +49,14 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
-# Function to search movies (Handles multiple word queries with URL encoding)
+# Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Handling multiple word search by using `quote_plus` to properly encode the query
-    query_encoded = quote_plus(query)
+    # Handling multiple word search with `+` between words
+    if " " in query:
+        query_encoded = query.replace(" ", "+")
+    else:
+        query_encoded = query
+
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
     
     try:
@@ -192,7 +196,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://your-deployment-url/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
@@ -200,4 +204,4 @@ def set_webhook():
         return "Webhook setup failed"
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
