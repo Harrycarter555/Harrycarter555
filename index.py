@@ -19,6 +19,9 @@ CHANNEL_ID = "-1002214699257"  # Replace with your actual private channel ID
 CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
+# Initialize the Flask app
+app = Flask(__name__)
+
 # Dummy storage for demonstration (replace with actual persistent storage solution)
 user_membership_status = {}
 search_results_cache = {}
@@ -153,24 +156,11 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
-def setup_dispatcher():
-    dispatcher = Dispatcher(bot, None, use_context=True)
-    dispatcher.add_handler(CommandHandler('start', welcome))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-    dispatcher.add_handler(CallbackQueryHandler(button_click))
-    return dispatcher
-
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return 'Hello World!'
-
-@app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
-    update = Update.de_json(request.get_json(force=True), bot)
-    setup_dispatcher().process_update(update)
-    return 'ok'
+# Initialize dispatcher globally
+dispatcher = Dispatcher(bot, None, use_context=True)
+dispatcher.add_handler(CommandHandler('start', welcome))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+dispatcher.add_handler(CallbackQueryHandler(button_click))
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
@@ -181,6 +171,15 @@ def set_webhook():
     else:
         return "Webhook setup failed"
 
+@app.route(f'/{TOKEN}', methods=['POST'])
+def respond():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+@app.route('/')
+def index():
+    return 'Hello World!'
+
 if __name__ == '__main__':
     app.run(debug=True)
-    
