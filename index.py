@@ -118,20 +118,24 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Prevent duplicate processing
-    if user_id in search_results_cache:
+    # Check if user already has a search in progress
+    if user_id in search_results_cache and search_results_cache[user_id]:
         update.message.reply_text("You already have a search in progress. Please wait or choose another query.")
         return
+
+    # Add user to cache to prevent duplicate searches
+    search_results_cache[user_id] = None  # Set to None until search completes
 
     search_results = update.message.reply_text("Searching for movies... Please wait.")
     movies_list = search_movies(query)
     
     if movies_list:
-        search_results_cache[user_id] = movies_list
+        search_results_cache[user_id] = movies_list  # Update cache with result
         keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
+        search_results_cache.pop(user_id, None)  # Remove cache entry if no results
         search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
 def button_click(update: Update, context) -> None:
