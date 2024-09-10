@@ -1,7 +1,6 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import quote_plus  # URL encoding for search query
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from flask import Flask, request
@@ -51,11 +50,11 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Handling multiple word search with `+` between words
+    # Detect if query contains multiple words or not
     if " " in query:
-        query_encoded = query.replace(" ", "+")
+        query_encoded = query.replace(" ", "+")  # For multiple words, use '+'
     else:
-        query_encoded = query
+        query_encoded = query  # For single words, use as is
 
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
     
@@ -196,7 +195,7 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
+    webhook_url = f'https://your-deployment-url/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
     if s:
         return "Webhook setup ok"
