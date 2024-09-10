@@ -130,20 +130,24 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Only show "Searching..." if a query is provided
-    if query:
-        search_results = update.message.reply_text("Searching for movies... Please wait.")
-        movies_list = search_movies(query)
-    
-        if movies_list:
-            search_results_cache[user_id] = movies_list
-            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+    # Check if the user is in the channel before processing
+    if user_membership_status.get(user_id, False):
+        # Only show "Searching..." if a query is provided
+        if query:
+            search_results = update.message.reply_text("Searching for movies... Please wait.")
+            movies_list = search_movies(query)
+        
+            if movies_list:
+                search_results_cache[user_id] = movies_list
+                keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+            else:
+                search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
         else:
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
+            update.message.reply_text('Please enter a movie name to search.')
     else:
-        update.message.reply_text('Please enter a movie name to search.')
+        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 # Function to handle movie selection
 def button_click(update: Update, context) -> None:
@@ -152,7 +156,7 @@ def button_click(update: Update, context) -> None:
     
     user_id = query.from_user.id
     selected_movie_idx = int(query.data)
-    selected_movie = search_results_cache[user_id][selected_movie_idx]
+    selected_movie = search_results_cache.get(user_id, [])[selected_movie_idx]
 
     title = selected_movie['title']
     image_url = selected_movie.get('image', None)
