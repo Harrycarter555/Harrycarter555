@@ -50,8 +50,15 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Always add a '+' at the end of the query
-    query_encoded = query + "+"
+
+
+# Function to get download links for a movie
+def get_download_links(movie_url: str):
+    try:
+        headers = {
+       def search_movies(query: str):
+    # Replace spaces with '+' and add '+' at the end of the query
+    query_encoded = query.replace(" ", "+") + "+"
     
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
     
@@ -84,13 +91,7 @@ def search_movies(query: str):
     except Exception as e:
         logger.error(f"Error during movie search: {e}")
         return []
-
-
-# Function to get download links for a movie
-def get_download_links(movie_url: str):
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         response = requests.get(movie_url, headers=headers)
         if response.status_code == 200:
