@@ -49,8 +49,11 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    # Updated search URL format
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
+    # Replace spaces with '+' for multiple word search queries
+    query = query.replace(" ", "+")
+    
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
+    
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
