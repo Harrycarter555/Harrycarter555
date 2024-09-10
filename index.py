@@ -6,6 +6,7 @@ from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler, Dispatcher
 from dotenv import load_dotenv
 import logging
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -23,15 +24,7 @@ bot = Bot(TOKEN)
 user_membership_status = {}
 search_results_cache = {}
 
-def welcome(update: Update, context) -> None:
-    user_id = update.message.from_user.id
-    if user_in_channel(user_id):
-        user_membership_status[user_id] = True
-        update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
-    else:
-        user_membership_status[user_id] = False
-        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
-
+# Check if user is a member of the channel
 def user_in_channel(user_id) -> bool:
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
@@ -44,6 +37,17 @@ def user_in_channel(user_id) -> bool:
         logger.error(f"Exception while checking user channel status: {e}")
         return False
 
+# /start command response
+def welcome(update: Update, context) -> None:
+    user_id = update.message.from_user.id
+    if user_in_channel(user_id):
+        user_membership_status[user_id] = True
+        update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
+    else:
+        user_membership_status[user_id] = False
+        update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
+
+# Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
     search_url = f"https://www.filmyfly.wales/site-1.html?to-search={query}"
     try:
@@ -76,6 +80,7 @@ def search_movies(query: str):
         logger.error(f"Error during movie search: {e}")
         return []
 
+# Fetch download links
 def get_download_links(movie_url: str):
     try:
         headers = {
@@ -94,13 +99,6 @@ def get_download_links(movie_url: str):
                     else:
                         download_links.add(('#', div.get_text(strip=True)))
 
-            for a_tag in soup.find_all('a', href=True, class_='dl'):
-                download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-            
-            for a_tag in soup.find_all('a', href=True):
-                if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
-                    download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
@@ -114,6 +112,7 @@ def get_download_links(movie_url: str):
         logger.error(f"Error while fetching download links: {e}")
         return []
 
+# Search movie handler
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
@@ -126,18 +125,24 @@ def find_movie(update: Update, context) -> None:
     # Add user to cache to prevent duplicate searches
     search_results_cache[user_id] = None  # Set to None until search completes
 
+    # Perform the movie search in a separate thread
+    search_thread = threading.Thread(target=perform_search, args=(update, query))
+    search_thread.start()
+
+def perform_search(update, query):
     search_results = update.message.reply_text("Searching for movies... Please wait.")
     movies_list = search_movies(query)
     
     if movies_list:
-        search_results_cache[user_id] = movies_list  # Update cache with result
+        search_results_cache[update.message.from_user.id] = movies_list  # Update cache with result
         keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         search_results.edit_text('Select a movie:', reply_markup=reply_markup)
     else:
-        search_results_cache.pop(user_id, None)  # Remove cache entry if no results
+        search_results_cache.pop(update.message.from_user.id, None)  # Remove cache entry if no results
         search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
+# Button click handler
 def button_click(update: Update, context) -> None:
     query = update.callback_query
     query.answer()
@@ -164,6 +169,7 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
+# Setup dispatcher
 def setup_dispatcher():
     dispatcher = Dispatcher(bot, None, use_context=True)
     dispatcher.add_handler(CommandHandler('start', welcome))
