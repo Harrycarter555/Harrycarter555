@@ -21,7 +21,7 @@ CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actu
 bot = Bot(TOKEN)
 
 # Dummy storage for demonstration (replace with actual persistent storage solution)
-user_search_status = {}
+user_membership_status = {}
 search_results_cache = {}
 
 # Check if user is a member of the channel
@@ -41,14 +41,15 @@ def user_in_channel(user_id) -> bool:
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
     if user_in_channel(user_id):
-        user_search_status[user_id] = None  # Clear any previous search status
+        user_membership_status[user_id] = True
         update.message.reply_text("You are verified as a channel member. Send a movie name to search for it.")
     else:
+        user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -116,39 +117,27 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Check if a search is already in progress
-    if user_id in user_search_status and user_search_status[user_id] == "searching":
+    # Add user to cache to prevent duplicate searches
+    if user_id in search_results_cache:
         update.message.reply_text("You already have a search in progress. Please wait or choose another query.")
         return
 
-    # Clear previous search results for the user
-    search_results_cache.pop(user_id, None)
-
-    # Update search status
-    user_search_status[user_id] = "searching"
-    
-    # Notify user that search is in progress
-    search_results = update.message.reply_text("Searching for movies... Please wait.")
-    
     # Perform the movie search in a separate thread
-    search_thread = threading.Thread(target=perform_search, args=(update, query, search_results))
+    search_thread = threading.Thread(target=perform_search, args=(update, query))
     search_thread.start()
 
-def perform_search(update, query, search_results):
-    try:
-        movies_list = search_movies(query)
-        
-        if movies_list:
-            user_search_status[update.message.from_user.id] = "completed"  # Update search status
-            keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            search_results.edit_text('Select a movie:', reply_markup=reply_markup)
-        else:
-            user_search_status.pop(update.message.from_user.id, None)  # Remove search status if no results
-            search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
-    except Exception as e:
-        logger.error(f"Error during search completion: {e}")
-        search_results.edit_text('An error occurred while searching. Please try again.')
+def perform_search(update, query):
+    search_results = update.message.reply_text("Searching for movies... Please wait.")
+    movies_list = search_movies(query)
+    
+    if movies_list:
+        search_results_cache[update.message.from_user.id] = movies_list  # Update cache with result
+        keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        search_results.edit_text('Select a movie:', reply_markup=reply_markup)
+    else:
+        search_results_cache.pop(update.message.from_user.id, None)  # Remove cache entry if no results
+        search_results.edit_text('Sorry 🙏, No Result Found! Check If You Have Misspelled The Movie Name.')
 
 # Button click handler
 def button_click(update: Update, context) -> None:
@@ -199,25 +188,12 @@ def respond():
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
-    try:
-        response = requests.get(f'https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}')
-        if response.status_code == 200:
-            return f"Webhook set to {webhook_url}"
-        else:
-            return f"Failed to set webhook. Status code: {response.status_code}"
-    except Exception as e:
-        logger.error(f"Exception while setting webhook: {e}")
-        return "Failed to set webhook."
+    webhook_url = f'https://your-deployment-url/{TOKEN}'  # Update with your deployment URL
+    s = bot.setWebhook(webhook_url)
+    if s:
+        return "Webhook setup ok"
+    else:
+        return "Webhook setup failed"
 
 if __name__ == '__main__':
-    app.run(port=5000)  # Make sure the port matches your deployment settings
-
-# To handle any updates or commands in a production environment
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    json_update = request.get_json()
-    if json_update:
-        update = Update.de_json(json_update, bot)
-        setup_dispatcher().process_update(update)
-    return 'ok'
+    app.run(port=5000)  # Ensure the port is correct for your environment
