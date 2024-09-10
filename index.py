@@ -166,6 +166,14 @@ def main():
 
     return app
 
-if __name__ == "__main__":
-    app = main()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+@app.route('/setwebhook', methods=['GET', 'POST'])
+def set_webhook():
+    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
+    s = bot.setWebhook(webhook_url)
+    if s:
+        return "Webhook setup ok"
+    else:
+        return "Webhook setup failed"
+
+if __name__ == '__main__':
+    app.run(debug=True)
