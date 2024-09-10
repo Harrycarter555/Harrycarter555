@@ -49,10 +49,9 @@ def welcome(update: Update, context) -> None:
 
 # Movie search function (runs in the background to avoid blocking main thread)
 def search_movies(query: str):
-    # Replace spaces with '+' for multiple word search queries
     query = query.replace(" ", "+")
-    
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
+    print(f"Search URL: {search_url}")  # Debugging line to check the URL
     
     try:
         headers = {
@@ -76,6 +75,8 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
+            if not movies:
+                logger.info("No movies found.")
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
