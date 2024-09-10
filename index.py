@@ -136,26 +136,17 @@ def setup_dispatcher() -> Application:
     application.add_handler(CallbackQueryHandler(button_click))
     return application
 
+# Flask setup for Vercel
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return 'Hello World!'
-
-@app.route(f'/{TOKEN}', methods=['POST'])
+@app.route('/api', methods=['POST'])
 def respond():
     update = Update.de_json(request.get_json(force=True), bot)
     asyncio.run(setup_dispatcher().process_update(update))
     return 'ok'
 
-@app.route('/setwebhook', methods=['GET', 'POST'])
+@app.route('/setwebhook', methods=['GET'])
 def set_webhook():
-    webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
-        return "Webhook setup failed"
-
-if __name__ == '__main__':
-    app.run(debug=True, port=int(os.getenv("PORT", 5000)))
+    webhook_url = f'https://<your-vercel-app>.vercel.app/api'  # Update with Vercel deployment URL
+    success = bot.setWebhook(webhook_url)
+    return "Webhook set!" if success else "Failed to set webhook"
