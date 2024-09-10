@@ -56,6 +56,7 @@ def search_movies(query: str):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
         response = requests.get(search_url, headers=headers)
+        logger.info(f"Response Status Code: {response.status_code}")
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
@@ -191,15 +192,18 @@ def respond():
     update = Update.de_json(request.get_json(force=True), bot)
     setup_dispatcher().process_update(update)
     return 'ok'
-
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
-    s = bot.setWebhook(webhook_url)
-    if s:
-        return "Webhook setup ok"
-    else:
-        return "Webhook setup failed"
+    try:
+        response = requests.get(f'https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}')
+        if response.status_code == 200:
+            return f"Webhook set to {webhook_url}"
+        else:
+            return f"Failed to set webhook. Status code: {response.status_code}"
+    except Exception as e:
+        logger.error(f"Exception while setting webhook: {e}")
+        return "Failed to set webhook."
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5000)  # Make sure the port is not conflicting with other services
