@@ -19,9 +19,6 @@ CHANNEL_ID = "-1002214699257"  # Replace with your actual private channel ID
 CHANNEL_INVITE_LINK = "https://t.me/+zUnqs8mlbX5kNTE1"  # Replace with your actual invitation link
 bot = Bot(TOKEN)
 
-# Initialize the Flask app
-app = Flask(__name__)
-
 # Dummy storage for demonstration (replace with actual persistent storage solution)
 user_membership_status = {}
 search_results_cache = {}
@@ -89,7 +86,6 @@ def get_download_links(movie_url: str):
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()  # Use a set to avoid duplicates
 
-            # Handle <a> tags with classes 'dl', 'dll', 'dlll'
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
                     link = div.find_previous('a', href=True)
@@ -98,16 +94,13 @@ def get_download_links(movie_url: str):
                     else:
                         download_links.add(('#', div.get_text(strip=True)))
 
-            # Handle <a> tags with the download button format
             for a_tag in soup.find_all('a', href=True, class_='dl'):
                 download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
             
-            # Handle cases with ▼ and center alignments
             for a_tag in soup.find_all('a', href=True):
                 if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
                     download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
 
-            # Filter out invalid URLs
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
@@ -124,6 +117,12 @@ def get_download_links(movie_url: str):
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
+
+    # Prevent duplicate processing
+    if user_id in search_results_cache:
+        update.message.reply_text("You already have a search in progress. Please wait or choose another query.")
+        return
+
     search_results = update.message.reply_text("Searching for movies... Please wait.")
     movies_list = search_movies(query)
     
@@ -141,6 +140,11 @@ def button_click(update: Update, context) -> None:
     
     user_id = query.from_user.id
     selected_movie_idx = int(query.data)
+    
+    if user_id not in search_results_cache:
+        query.message.reply_text("No search results found. Please perform a search first.")
+        return
+
     selected_movie = search_results_cache[user_id][selected_movie_idx]
 
     title = selected_movie['title']
@@ -156,11 +160,24 @@ def button_click(update: Update, context) -> None:
     else:
         query.message.reply_text(f"{title}\n\nDownload Links:", reply_markup=reply_markup)
 
-# Initialize dispatcher globally
-dispatcher = Dispatcher(bot, None, use_context=True)
-dispatcher.add_handler(CommandHandler('start', welcome))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
-dispatcher.add_handler(CallbackQueryHandler(button_click))
+def setup_dispatcher():
+    dispatcher = Dispatcher(bot, None, use_context=True)
+    dispatcher.add_handler(CommandHandler('start', welcome))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, find_movie))
+    dispatcher.add_handler(CallbackQueryHandler(button_click))
+    return dispatcher
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return 'Hello World!'
+
+@app.route(f'/{TOKEN}', methods=['POST'])
+def respond():
+    update = Update.de_json(request.get_json(force=True), bot)
+    setup_dispatcher().process_update(update)
+    return 'ok'
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
@@ -170,16 +187,6 @@ def set_webhook():
         return "Webhook setup ok"
     else:
         return "Webhook setup failed"
-
-@app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-
-@app.route('/')
-def index():
-    return 'Hello World!'
 
 if __name__ == '__main__':
     app.run(debug=True)
