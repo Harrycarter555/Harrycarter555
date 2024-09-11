@@ -122,12 +122,13 @@ def get_download_links(movie_url: str):
         return []
 
 # Function to handle user movie search
+# Function to handle user movie search
 def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Check if the user is in the channel before processing
-    if user_membership_status.get(user_id, False):
+    # Check if the user is already verified as a channel member
+    if user_membership_status.get(user_id, False):  # Only check if not verified already
         if query:
             search_results = update.message.reply_text("Searching for movies... Please wait.")
             movies_list = search_movies(query)
@@ -142,7 +143,9 @@ def find_movie(update: Update, context) -> None:
         else:
             update.message.reply_text('Please enter a movie name to search.')
     else:
+        # If the user hasn't joined, send the channel join message
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
+
 
 # Function to handle movie selection
 def button_click(update: Update, context) -> None:
