@@ -37,17 +37,12 @@ def welcome(update: Update, context) -> None:
 
 # Check if the user is in the channel
 def user_in_channel(user_id) -> bool:
-    if user_id in user_membership_status and user_membership_status[user_id]:  # Check if already verified
-        return True  # User is already verified
-
     url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
     try:
         response = requests.get(url).json()
         if response.get('ok') and 'result' in response:
             status = response['result']['status']
-            if status in ['member', 'administrator', 'creator']:
-                user_membership_status[user_id] = True  # Mark user as verified
-                return True
+            return status in ['member', 'administrator', 'creator']
         return False
     except Exception as e:
         logger.error(f"Exception while checking user channel status: {e}")
@@ -55,8 +50,9 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
+    # Replace spaces with '+' for the search query
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
-
+    
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -131,8 +127,9 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
-    # Check if the user is already verified as a channel member
-    if user_membership_status.get(user_id, False):  # Only check if not verified already
+    # Check if the user is in the channel before processing
+    if user_membership_status.get(user_id, False):
+        # Only show "Searching..." if a query is provided
         if query:
             search_results = update.message.reply_text("Searching for movies... Please wait.")
             movies_list = search_movies(query)
@@ -147,7 +144,6 @@ def find_movie(update: Update, context) -> None:
         else:
             update.message.reply_text('Please enter a movie name to search.')
     else:
-        # If the user hasn't joined, send the channel join message
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
 # Function to handle movie selection
@@ -196,11 +192,10 @@ def respond():
 def set_webhook():
     webhook_url = f'https://harrycarter555.vercel.app/{TOKEN}'  # Update with your deployment URL
     s = bot.setWebhook(webhook_url)
-        if s:
+    if s:
         return f"Webhook set successfully at {webhook_url}"
     else:
         return "Failed to set webhook"
 
 if __name__ == '__main__':
     app.run(port=5000)
-
