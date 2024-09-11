@@ -82,9 +82,8 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
-
-            # Limit to the top 20 results
-            return movies[:20]
+                
+            return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
             return []
