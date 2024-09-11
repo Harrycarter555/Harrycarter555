@@ -61,8 +61,11 @@ def search_movies(query: str):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
-
+            # Limit to first 20 results
+            results_count = 0
             for item in soup.find_all('div', class_='A2'):
+                if results_count >= 20:
+                    break
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 movie_url_tag = item.find('a', href=True)
@@ -76,7 +79,7 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
-                
+                results_count += 1
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
