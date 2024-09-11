@@ -50,9 +50,6 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Replace spaces with '+' for the search query
-  
-    
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
     
     try:
@@ -131,7 +128,6 @@ def find_movie(update: Update, context) -> None:
 
     # Check if the user is in the channel before processing
     if user_membership_status.get(user_id, False):
-        # Only show "Searching..." if a query is provided
         if query:
             search_results = update.message.reply_text("Searching for movies... Please wait.")
             movies_list = search_movies(query)
