@@ -50,9 +50,8 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # URL-encode the query
-    query_encoded = requests.utils.quote(query)
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
+    # Directly use spaces in the query if the site supports it
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
     
     try:
         headers = {
@@ -62,13 +61,11 @@ def search_movies(query: str):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
-
-            # Adjust these selectors based on actual HTML structure
-            results_div = soup.find_all('div', class_='A2')
-            if not results_div:
-                results_div = soup.find_all('div', class_='result')  # Adjust if class name differs
-            
-            for item in results_div:
+            # Limit to first 20 results
+            results_count = 0
+            for item in soup.find_all('div', class_='A2'):
+                if results_count >= 20:
+                    break
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 movie_url_tag = item.find('a', href=True)
@@ -82,7 +79,7 @@ def search_movies(query: str):
                     'image': image_url,
                     'download_links': download_links
                 })
-                
+                results_count += 1
             return movies
         else:
             logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
@@ -102,17 +99,21 @@ def get_download_links(movie_url: str):
             soup = BeautifulSoup(response.content, 'html.parser')
             download_links = set()  # Use a set to avoid duplicates
 
-            # Adjust these selectors based on actual HTML structure
-            for div in soup.find_all('div', class_='dl'):
-                link = div.find_previous('a', href=True)
-                if link:
-                    download_links.add((link['href'], div.get_text(strip=True)))
-                else:
-                    download_links.add(('#', div.get_text(strip=True)))
-                    
+            for class_name in ['dl', 'dll', 'dlll']:
+                for div in soup.find_all('div', class_=class_name):
+                    link = div.find_previous('a', href=True)
+                    if link:
+                        download_links.add((link['href'], div.get_text(strip=True)))
+                    else:
+                        download_links.add(('#', div.get_text(strip=True)))
+
             for a_tag in soup.find_all('a', href=True, class_='dl'):
                 download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
-                
+
+            for a_tag in soup.find_all('a', href=True):
+                if '▼' in a_tag.get_text() or 'center' in a_tag.get('align', ''):
+                    download_links.add((a_tag['href'], a_tag.get_text(strip=True)))
+
             filtered_links = [
                 {'url': url, 'text': text}
                 for url, text in download_links
