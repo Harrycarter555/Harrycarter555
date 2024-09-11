@@ -50,8 +50,9 @@ def user_in_channel(user_id) -> bool:
 
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
-    # Replace spaces with '+' for the search query
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
+    # URL-encode the query
+    query_encoded = requests.utils.quote(query)
+    search_url = f"https://filmyfly.wales/site-1.html?to-search={query_encoded}"
     
     try:
         headers = {
@@ -61,9 +62,13 @@ def search_movies(query: str):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             movies = []
-            
+
             # Adjust these selectors based on actual HTML structure
-            for item in soup.find_all('div', class_='A2'):
+            results_div = soup.find_all('div', class_='A2')
+            if not results_div:
+                results_div = soup.find_all('div', class_='result')  # Adjust if class name differs
+            
+            for item in results_div:
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 movie_url_tag = item.find('a', href=True)
