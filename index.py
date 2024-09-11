@@ -19,24 +19,13 @@ bot = Bot(TOKEN)
 user_membership_status = {}
 search_results_cache = {}
 
-# Function to check if the user is in the channel
-def user_in_channel(user_id) -> bool:
-    url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
-    try:
-        response = requests.get(url).json()
-        if response.get('ok'):
-            status = response['result']['status']
-            return status in ['member', 'administrator', 'creator']
-        else:
-            logger.error(f"Error in response: {response}")
-            return False
-    except Exception as e:
-        logger.error(f"Exception while checking user channel status: {e}")
-        return False
-
 # The welcome function for the /start command
 def welcome(update: Update, context) -> None:
     user_id = update.message.from_user.id
+
+    # Clear cache when user sends /start
+    if user_id in search_results_cache:
+        del search_results_cache[user_id]
 
     # Check if the user is in the channel
     if user_in_channel(user_id):
@@ -46,38 +35,67 @@ def welcome(update: Update, context) -> None:
         user_membership_status[user_id] = False
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
 
-# Function to search movies (Handling single and multiple word queries)
+# Check if the user is in the channel
+def user_in_channel(user_id) -> bool:
+    url = f"https://api.telegram.org/bot{TOKEN}/getChatMember?chat_id={CHANNEL_ID}&user_id={user_id}"
+    try:
+        response = requests.get(url).json()
+        if response.get('ok') and 'result' in response:
+            status = response['result']['status']
+            return status in ['member', 'administrator', 'creator']
+        return False
+    except Exception as e:
+        logger.error(f"Exception while checking user channel status: {e}")
+        return False
+
+# Function to search movies with pagination handling
 def search_movies(query: str):
     search_url = f"https://filmyfly.wales/site-1.html?to-search={query.replace(' ', '+')}"
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-        }
-        response = requests.get(search_url, headers=headers)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            movies = []
-            for item in soup.find_all('div', class_='A2'):
-                title_tag = item.find('a', href=True).find_next('b').find('span')
-                title = title_tag.get_text(strip=True) if title_tag else "No Title"
-                movie_url_tag = item.find('a', href=True)
-                movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
-                image_tag = item.find('img')
-                image_url = image_tag['src'] if image_tag else None
-                download_links = get_download_links(movie_url)
-                movies.append({
-                    'title': title,
-                    'url': movie_url,
-                    'image': image_url,
-                    'download_links': download_links
-                })
-            return movies
-        else:
-            logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
-            return []
-    except Exception as e:
-        logger.error(f"Error during movie search: {e}")
-        return []
+    movies = []
+    page = 1
+
+    while True:
+        url = f"{search_url}&page={page}"
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+            }
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                page_movies = []
+
+                for item in soup.find_all('div', class_='A2'):
+                    title_tag = item.find('a', href=True).find_next('b').find('span')
+                    title = title_tag.get_text(strip=True) if title_tag else "No Title"
+                    movie_url_tag = item.find('a', href=True)
+                    movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+                    image_tag = item.find('img')
+                    image_url = image_tag['src'] if image_tag else None
+                    download_links = get_download_links(movie_url)
+                    page_movies.append({
+                        'title': title,
+                        'url': movie_url,
+                        'image': image_url,
+                        'download_links': download_links
+                    })
+
+                if not page_movies:
+                    logger.info("No more movies found on this page.")
+                    break
+
+                movies.extend(page_movies)
+                page += 1
+            else:
+                logger.error(f"Failed to retrieve search results. Status Code: {response.status_code}")
+                break
+        except Exception as e:
+            logger.error(f"Error during movie search: {e}")
+            break
+
+    if not movies:
+        logger.info("No movies found for the query.")
+    return movies
 
 # Function to get download links for a movie
 def get_download_links(movie_url: str):
@@ -88,7 +106,7 @@ def get_download_links(movie_url: str):
         response = requests.get(movie_url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            download_links = set()
+            download_links = set()  # Use a set to avoid duplicates
 
             for class_name in ['dl', 'dll', 'dlll']:
                 for div in soup.find_all('div', class_=class_name):
@@ -123,11 +141,13 @@ def find_movie(update: Update, context) -> None:
     query = update.message.text.strip()
     user_id = update.message.from_user.id
 
+    # Check if the user is in the channel before processing
     if user_membership_status.get(user_id, False):
+        # Only show "Searching..." if a query is provided
         if query:
             search_results = update.message.reply_text("Searching for movies... Please wait.")
             movies_list = search_movies(query)
-
+        
             if movies_list:
                 search_results_cache[user_id] = movies_list
                 keyboard = [[InlineKeyboardButton(movie['title'], callback_data=str(idx))] for idx, movie in enumerate(movies_list)]
@@ -139,7 +159,6 @@ def find_movie(update: Update, context) -> None:
             update.message.reply_text('Please enter a movie name to search.')
     else:
         update.message.reply_text(f"Please join our channel to use this bot: {CHANNEL_INVITE_LINK}")
-        logger.info(f"User {user_id} not in channel, membership status: {user_membership_status.get(user_id, 'unknown')}")
 
 # Function to handle movie selection
 def button_click(update: Update, context) -> None:
@@ -155,6 +174,7 @@ def button_click(update: Update, context) -> None:
     download_links = selected_movie.get('download_links', [])
 
     keyboard = [[InlineKeyboardButton(link['text'], url=link['url'])] for link in download_links]
+
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if image_url:
