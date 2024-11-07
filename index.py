@@ -51,7 +51,7 @@ def user_in_channel(user_id) -> bool:
 # Function to search movies (Handling single and multiple word queries)
 def search_movies(query: str):
     # Directly use spaces in the query if the site supports it
-    search_url = f"https://filmyfly.wales/site-1.html?to-search={query}"
+    search_url = f"https://filmyfly.rodeo/site-1.html?to-search={query}"
     
     try:
         headers = {
@@ -69,7 +69,7 @@ def search_movies(query: str):
                 title_tag = item.find('a', href=True).find_next('b').find('span')
                 title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 movie_url_tag = item.find('a', href=True)
-                movie_url = "https://www.filmyfly.wales" + movie_url_tag['href'] if movie_url_tag else "#"
+                movie_url = "https://www.filmyfly.rodeo" + movie_url_tag['href'] if movie_url_tag else "#"
                 image_tag = item.find('img')
                 image_url = image_tag['src'] if image_tag else None
                 download_links = get_download_links(movie_url)
